@@ -5,8 +5,9 @@ export const SUPABASE_URL = env.PUBLIC_SUPABASE_URL || '';
 export const SUPABASE_ANON_KEY = env.PUBLIC_SUPABASE_ANON_KEY || '';
 
 // Solana RPC Endpoints
+// Use MagicBlock RPC as primary to avoid rate limits on public endpoints
 export const MAGICBLOCK_RPC = env.PUBLIC_MAGICBLOCK_RPC || 'https://rpc.magicblock.app/devnet/';
-export const SOLANA_RPC = env.PUBLIC_SOLANA_RPC || 'https://api.devnet.solana.com';
+export const SOLANA_RPC = env.PUBLIC_SOLANA_RPC || env.PUBLIC_MAGICBLOCK_RPC || 'https://rpc.magicblock.app/devnet/';
 
 // Pyth/Hermes Configuration
 export const HERMES_URL = env.PUBLIC_HERMES_URL || 'https://hermes.pyth.network';
