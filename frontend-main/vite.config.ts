@@ -16,4 +16,13 @@ export default defineConfig({
 	define: {
 		'process.env': {},
 	},
+	ssr: {
+		noExternal: ['@solana/wallet-adapter-wallets', '@solana/wallet-adapter-base'],
+	},
+	optimizeDeps: {
+		include: ['react', 'react-dom'],
+		esbuildOptions: {
+			target: 'esnext',
+		},
+	},
 });
