@@ -883,7 +883,7 @@
 
 <div class="bloomberg">
 	<div class="command-bar">
-		<a href="/" class="logo">BLOCKBERG</a>
+		<a href="/landing" class="logo">BLOCKBERG</a>
 		<div class="nav-links">
 			<a href="/terminal" class="nav-link active">TERMINAL</a>
 			<a href="/dashboard" class="nav-link">DASHBOARD</a>

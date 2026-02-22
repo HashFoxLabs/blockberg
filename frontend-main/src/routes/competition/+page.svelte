@@ -397,10 +397,10 @@
 
 <div class="bloomberg">
 	<div class="command-bar">
-		<a href="/" class="logo">BLOCKBERG</a>
+		<a href="/landing" class="logo">BLOCKBERG</a>
 		<div class="nav-links">
 			<a href="/terminal" class="nav-link">TERMINAL</a>
-			<a href="/competition" class="nav-link active">TOURNAMENTS</a>
+			<a href="/competition" class="nav-link active">COMPETITION</a>
 		</div>
 		<div class="status-bar">
 			{#if selectedTournament}

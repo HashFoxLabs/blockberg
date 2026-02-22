@@ -364,11 +364,10 @@
 
 <div class="dashboard">
 	<header class="dashboard-header">
-		<a href="/" class="logo">BLOCKBERG</a>
+		<a href="/landing" class="logo">BLOCKBERG</a>
 		<div class="nav-links">
-			<a href="/" class="nav-link">TERMINAL</a>
+			<a href="/terminal" class="nav-link">TERMINAL</a>
 			<a href="/dashboard" class="nav-link active">DASHBOARD</a>
-			<a href="/landing" class="nav-link">TRADE IDEAS</a>
 			<a href="/competition" class="nav-link">COMPETITION</a>
 		</div>
 		<div class="header-right">
