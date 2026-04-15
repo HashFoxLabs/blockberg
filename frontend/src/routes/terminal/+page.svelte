@@ -252,6 +252,7 @@
 	}
 
 	let disconnectSessionLoading = false;
+	let closeAllPositionsLoading = false;
 
 	async function disconnectPaperSession() {
 		if (!connectedWallet?.connected) return;
@@ -1103,6 +1104,53 @@ function maybeOfferDevnetFunding() {
 		activePositions = activePositions.filter(p => p.id !== id);
 	}
 
+	/** Close every perp position / order listed in the dock (same set as `allDockOrders`). */
+	async function closeAllOpenPositions() {
+		if (!isOnChainMode || !connectedWallet?.connected) return;
+		if (!requirePaperSessionOrToast()) return;
+
+		const queue = onChainPositions.filter(
+			(p) =>
+				p.type === 'direct' &&
+				p.tradeMode === 'perp' &&
+				(p.status === 'ACTIVE' || p.status === 'PENDING')
+		);
+		if (queue.length === 0) {
+			toastStore.info('Nothing to close', 'No open perp positions or orders in the list.');
+			return;
+		}
+
+		closeAllPositionsLoading = true;
+		magicBlockStatus = `Closing ${queue.length} position(s)…`;
+		let closed = 0;
+		try {
+			for (const p of queue) {
+				if (p.status === 'PENDING') {
+					await magicBlockClient.cancelLimitOrder(p.pubkey);
+				} else {
+					const currentPrice = prices[p.pairSymbol]?.price || p.entryPrice || 0;
+					if (!currentPrice || currentPrice <= 0) {
+						throw new Error(`No live price for ${p.pairSymbol}; cannot close.`);
+					}
+					await magicBlockClient.closeDirectPosition(p.pubkey, currentPrice);
+				}
+				closed++;
+			}
+			await updateWalletStatus();
+			toastStore.success('All closed', `Closed or cancelled ${closed} perp order(s).`);
+			magicBlockStatus = 'All positions closed';
+		} catch (e: any) {
+			magicBlockStatus = 'Close all failed';
+			toastStore.error(
+				'Close all failed',
+				e?.message || String(e) || 'One or more closes failed. Refresh and retry.'
+			);
+			await updateWalletStatus();
+		} finally {
+			closeAllPositionsLoading = false;
+		}
+	}
+
 	async function requestAirdrop() {
 		if (!connectedWallet?.connected) {
 			return;
@@ -1734,14 +1782,31 @@ function maybeOfferDevnetFunding() {
 			<div class="positions-strip">
 				<div class="chart-positions-panel chart-dock-orders positions-strip-inner">
 					<div class="chart-positions-header dock-orders-header">
-						OPEN POSITIONS · ORDERS
-						<button
-							type="button"
-							class="chart-positions-refresh dock-refresh-hl"
-							on:click={() => updateWalletStatus()}
-						>
-							↻ Refresh
-						</button>
+						<span class="chart-positions-title">OPEN POSITIONS · ORDERS</span>
+						<div class="chart-positions-header-actions">
+							{#if allDockOrders.length > 0}
+								<button
+									type="button"
+									class="chart-positions-close-all"
+									disabled={closeAllPositionsLoading ||
+										!connectedWallet?.connected ||
+										!fastTradingSessionActive}
+									title={!fastTradingSessionActive
+										? 'Fund a paper session first (same as single close).'
+										: 'Close or cancel every open perp in the list'}
+									on:click={closeAllOpenPositions}
+								>
+									{closeAllPositionsLoading ? 'Closing…' : 'Close all'}
+								</button>
+							{/if}
+							<button
+								type="button"
+								class="chart-positions-refresh dock-refresh-hl"
+								on:click={() => updateWalletStatus()}
+							>
+								↻ Refresh
+							</button>
+						</div>
 					</div>
 					{#if allDockOrders.length === 0}
 						<div class="chart-positions-empty">
@@ -3406,12 +3471,46 @@ function maybeOfferDevnetFunding() {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		gap: 8px;
 		color: #ff9500;
 		font-size: 11px;
 		font-weight: bold;
 		letter-spacing: 0.5px;
 		margin-bottom: 4px;
 		flex-shrink: 0;
+	}
+
+	.chart-positions-title {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.chart-positions-header-actions {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		flex-shrink: 0;
+	}
+
+	.chart-positions-close-all {
+		background: transparent;
+		border: 1px solid #663c14;
+		color: #ff9500;
+		font-size: 10px;
+		padding: 2px 8px;
+		cursor: pointer;
+		font-family: 'Courier New', monospace;
+		border-radius: 3px;
+	}
+
+	.chart-positions-close-all:hover:not(:disabled) {
+		border-color: #ff9500;
+		color: #fff;
+	}
+
+	.chart-positions-close-all:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
 	}
 
 	.positions-strip .chart-positions-panel {
