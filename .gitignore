@@ -13,13 +13,15 @@ pnpm-lock.yaml
 **/.env.local
 **/.env.*.local
 
-# SvelteKit
+# SvelteKit / Vite
 .svelte-kit/
 **/.svelte-kit/
 build/
 .output/
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+.vite/
+**/.vite/
 
 # Build outputs
 dist/
@@ -28,6 +30,17 @@ out/
 .nuxt/
 .cache/
 .parcel-cache/
+storybook-static/
+
+# Rust / Cargo / Anchor
+target/
+**/target/
+**/*.rs.bk
+.cargo/
+.anchor/
+**/.anchor/
+test-ledger/
+**/test-ledger/
 
 # Logs
 logs/
@@ -38,7 +51,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# OS Files
+# OS files
 .DS_Store
 .DS_Store?
 ._*
@@ -48,7 +61,7 @@ ehthumbs.db
 Thumbs.db
 desktop.ini
 
-# IDE & Editors
+# IDE & editors
 .vscode/
 .idea/
 *.swp
@@ -60,10 +73,13 @@ desktop.ini
 *.sublime-project
 *.sublime-workspace
 
-# Testing
+# Testing & coverage
 coverage/
 .nyc_output/
 *.lcov
+playwright-report/
+test-results/
+**/.playwright/
 
 # Temporary files
 *.tmp
@@ -79,6 +95,11 @@ coverage/
 # TypeScript
 *.tsbuildinfo
 
-# Misc
+# Secrets & key material (never commit)
+*.pem
+*-keypair.json
+
+# Misc tooling & deploy
 .vercel
 .turbo
+.eslintcache

@@ -1,2 +1,0 @@
-# backend
-solana rust programs

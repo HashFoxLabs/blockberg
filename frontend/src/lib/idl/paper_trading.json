@@ -1,0 +1,1800 @@
+{
+  "address": "GTyA9zS7YrRJ7LQCqeKAYZa4yL2CSCaH6SmEALEWAXAk",
+  "metadata": {
+    "name": "paper_trading",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Paper Trading Platform on Solana with Pyth Integration"
+  },
+  "instructions": [
+    {
+      "name": "add_executor",
+      "discriminator": [
+        195,
+        90,
+        42,
+        209,
+        244,
+        246,
+        76,
+        18
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "executor",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "cancel_limit_order",
+      "docs": [
+        "Cancel a pending limit order. Returns locked margin to available balance."
+      ],
+      "discriminator": [
+        132,
+        156,
+        132,
+        31,
+        67,
+        40,
+        232,
+        97
+      ],
+      "accounts": [
+        {
+          "name": "user_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user_account.owner",
+                "account": "UserAccount"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user_account.owner",
+                "account": "UserAccount"
+              },
+              {
+                "kind": "account",
+                "path": "position.position_id",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "signer": true
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_position",
+      "docs": [
+        "Manually close an active position at the current market price."
+      ],
+      "discriminator": [
+        123,
+        134,
+        81,
+        0,
+        49,
+        68,
+        98,
+        98
+      ],
+      "accounts": [
+        {
+          "name": "user_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user_account.owner",
+                "account": "UserAccount"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user_account.owner",
+                "account": "UserAccount"
+              },
+              {
+                "kind": "account",
+                "path": "position.position_id",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "signer": true
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        }
+      ],
+      "args": [
+        {
+          "name": "current_price",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "execute_tp_sl",
+      "discriminator": [
+        247,
+        2,
+        249,
+        51,
+        134,
+        214,
+        125,
+        155
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position.owner",
+                "account": "Position"
+              },
+              {
+                "kind": "account",
+                "path": "position.position_id",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position.owner",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "executor",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "current_price",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "fill_limit_order",
+      "discriminator": [
+        83,
+        74,
+        211,
+        114,
+        227,
+        230,
+        105,
+        177
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position.owner",
+                "account": "Position"
+              },
+              {
+                "kind": "account",
+                "path": "position.position_id",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position.owner",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "executor",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "current_price",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initialize_config",
+      "discriminator": [
+        208,
+        127,
+        21,
+        1,
+        194,
+        190,
+        196,
+        70
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "treasury",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "initialize_user_account",
+      "docs": [
+        "Create the user's unified paper-trading account.",
+        "Pays a small real SOL entry fee to the treasury, receives 100k virtual USDT.",
+        "NOTE: intentionally NOT session-protected — paying real SOL requires the real wallet."
+      ],
+      "discriminator": [
+        131,
+        248,
+        61,
+        211,
+        152,
+        205,
+        122,
+        238
+      ],
+      "accounts": [
+        {
+          "name": "user_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "treasury",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "entry_fee",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "liquidate_position",
+      "discriminator": [
+        187,
+        74,
+        229,
+        149,
+        102,
+        81,
+        221,
+        68
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position.owner",
+                "account": "Position"
+              },
+              {
+                "kind": "account",
+                "path": "position.position_id",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position.owner",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "executor",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "current_price",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "open_limit_order",
+      "docs": [
+        "Place a limit order. Margin is locked immediately."
+      ],
+      "discriminator": [
+        157,
+        32,
+        218,
+        183,
+        71,
+        29,
+        18,
+        147
+      ],
+      "accounts": [
+        {
+          "name": "user_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user_account.owner",
+                "account": "UserAccount"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user_account.owner",
+                "account": "UserAccount"
+              },
+              {
+                "kind": "account",
+                "path": "user_account.total_positions",
+                "account": "UserAccount"
+              }
+            ]
+          }
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "pair_index",
+          "type": "u8"
+        },
+        {
+          "name": "trade_mode",
+          "type": {
+            "defined": {
+              "name": "TradeMode"
+            }
+          }
+        },
+        {
+          "name": "direction",
+          "type": {
+            "defined": {
+              "name": "Direction"
+            }
+          }
+        },
+        {
+          "name": "margin_usd",
+          "type": "u64"
+        },
+        {
+          "name": "leverage",
+          "type": "u8"
+        },
+        {
+          "name": "limit_price",
+          "type": "u64"
+        },
+        {
+          "name": "take_profit_price",
+          "type": "u64"
+        },
+        {
+          "name": "stop_loss_price",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "open_market_position",
+      "docs": [
+        "Open a market position (fills immediately at `entry_price`).",
+        "Session key: user approves once per session, trades execute without popups."
+      ],
+      "discriminator": [
+        0,
+        35,
+        231,
+        15,
+        160,
+        236,
+        149,
+        130
+      ],
+      "accounts": [
+        {
+          "name": "user_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user_account.owner",
+                "account": "UserAccount"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user_account.owner",
+                "account": "UserAccount"
+              },
+              {
+                "kind": "account",
+                "path": "user_account.total_positions",
+                "account": "UserAccount"
+              }
+            ]
+          }
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "pair_index",
+          "type": "u8"
+        },
+        {
+          "name": "trade_mode",
+          "type": {
+            "defined": {
+              "name": "TradeMode"
+            }
+          }
+        },
+        {
+          "name": "direction",
+          "type": {
+            "defined": {
+              "name": "Direction"
+            }
+          }
+        },
+        {
+          "name": "margin_usd",
+          "type": "u64"
+        },
+        {
+          "name": "leverage",
+          "type": "u8"
+        },
+        {
+          "name": "take_profit_price",
+          "type": "u64"
+        },
+        {
+          "name": "stop_loss_price",
+          "type": "u64"
+        },
+        {
+          "name": "entry_price",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "remove_executor",
+      "discriminator": [
+        220,
+        155,
+        16,
+        109,
+        21,
+        139,
+        129,
+        190
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "executor",
+          "type": "pubkey"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Position",
+      "discriminator": [
+        170,
+        188,
+        143,
+        228,
+        122,
+        64,
+        247,
+        208
+      ]
+    },
+    {
+      "name": "ProgramConfig",
+      "discriminator": [
+        196,
+        210,
+        90,
+        231,
+        144,
+        149,
+        140,
+        63
+      ]
+    },
+    {
+      "name": "SessionToken",
+      "discriminator": [
+        233,
+        4,
+        115,
+        14,
+        46,
+        21,
+        1,
+        15
+      ]
+    },
+    {
+      "name": "UserAccount",
+      "discriminator": [
+        211,
+        33,
+        136,
+        16,
+        186,
+        110,
+        242,
+        127
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "AccountInitialized",
+      "discriminator": [
+        82,
+        63,
+        202,
+        253,
+        82,
+        125,
+        73,
+        11
+      ]
+    },
+    {
+      "name": "ConfigInitialized",
+      "discriminator": [
+        181,
+        49,
+        200,
+        156,
+        19,
+        167,
+        178,
+        91
+      ]
+    },
+    {
+      "name": "ExecutorAdded",
+      "discriminator": [
+        41,
+        10,
+        249,
+        60,
+        242,
+        196,
+        109,
+        62
+      ]
+    },
+    {
+      "name": "ExecutorRemoved",
+      "discriminator": [
+        13,
+        84,
+        95,
+        215,
+        219,
+        121,
+        202,
+        82
+      ]
+    },
+    {
+      "name": "LimitOrderFilled",
+      "discriminator": [
+        47,
+        24,
+        246,
+        214,
+        176,
+        226,
+        158,
+        0
+      ]
+    },
+    {
+      "name": "PositionCancelled",
+      "discriminator": [
+        209,
+        176,
+        193,
+        59,
+        248,
+        28,
+        12,
+        180
+      ]
+    },
+    {
+      "name": "PositionClosed",
+      "discriminator": [
+        157,
+        163,
+        227,
+        228,
+        13,
+        97,
+        138,
+        121
+      ]
+    },
+    {
+      "name": "PositionOpened",
+      "discriminator": [
+        237,
+        175,
+        243,
+        230,
+        147,
+        117,
+        101,
+        121
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "EntryFeeTooLow",
+      "msg": "Entry fee is too low (minimum 0.1 SOL)"
+    },
+    {
+      "code": 6001,
+      "name": "InsufficientBalance",
+      "msg": "Insufficient available balance"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidMargin",
+      "msg": "Margin must be greater than zero"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidPrice",
+      "msg": "Price must be greater than zero"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidLimitPrice",
+      "msg": "Limit price must be greater than zero"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidTakeProfitPrice",
+      "msg": "Invalid take profit price for this direction"
+    },
+    {
+      "code": 6006,
+      "name": "InvalidStopLossPrice",
+      "msg": "Invalid stop loss price for this direction"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidLeverage",
+      "msg": "Invalid leverage — spot must be 1x; perp valid tiers: 2,3,5,10,15,20,25,50"
+    },
+    {
+      "code": 6008,
+      "name": "InvalidPairIndex",
+      "msg": "Invalid pair index (0=SOL, 1=BTC, 2=ETH, 3=AVAX, 4=LINK)"
+    },
+    {
+      "code": 6009,
+      "name": "PositionNotActive",
+      "msg": "Position is not active"
+    },
+    {
+      "code": 6010,
+      "name": "PositionNotPending",
+      "msg": "Position is not in PendingFill status"
+    },
+    {
+      "code": 6011,
+      "name": "ConditionNotMet",
+      "msg": "TP/SL condition not met at current price"
+    },
+    {
+      "code": 6012,
+      "name": "FillConditionNotMet",
+      "msg": "Fill condition not met at current price"
+    },
+    {
+      "code": 6013,
+      "name": "LiquidationConditionNotMet",
+      "msg": "Liquidation condition not met at current price"
+    },
+    {
+      "code": 6014,
+      "name": "NotAPerpPosition",
+      "msg": "This position is not a perp — cannot liquidate"
+    },
+    {
+      "code": 6015,
+      "name": "Unauthorized",
+      "msg": "Unauthorized access"
+    },
+    {
+      "code": 6016,
+      "name": "UnauthorizedExecutor",
+      "msg": "Executor is not in the authorized whitelist"
+    },
+    {
+      "code": 6017,
+      "name": "ExecutorAlreadyExists",
+      "msg": "Executor already exists in the whitelist"
+    }
+  ],
+  "types": [
+    {
+      "name": "AccountInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "initial_balance",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CloseReason",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "None"
+          },
+          {
+            "name": "Manual"
+          },
+          {
+            "name": "TakeProfit"
+          },
+          {
+            "name": "StopLoss"
+          },
+          {
+            "name": "Liquidation"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Direction",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Long"
+          },
+          {
+            "name": "Short"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ExecutorAdded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "executor",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ExecutorRemoved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "executor",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LimitOrderFilled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "position_id",
+            "type": "u64"
+          },
+          {
+            "name": "pair_index",
+            "type": "u8"
+          },
+          {
+            "name": "fill_price",
+            "type": "u64"
+          },
+          {
+            "name": "liquidation_price",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OrderType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Market"
+          },
+          {
+            "name": "Limit"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Position",
+      "docs": [
+        "A single position — unified for spot and perp, market and limit"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "position_id",
+            "type": "u64"
+          },
+          {
+            "name": "pair_index",
+            "docs": [
+              "0=SOL, 1=BTC, 2=ETH, 3=AVAX, 4=LINK"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "trade_mode",
+            "type": {
+              "defined": {
+                "name": "TradeMode"
+              }
+            }
+          },
+          {
+            "name": "direction",
+            "type": {
+              "defined": {
+                "name": "Direction"
+              }
+            }
+          },
+          {
+            "name": "order_type",
+            "type": {
+              "defined": {
+                "name": "OrderType"
+              }
+            }
+          },
+          {
+            "name": "size_usd",
+            "docs": [
+              "Notional value = margin_usd * leverage (6 decimals)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "margin_usd",
+            "docs": [
+              "Margin locked from balance (6 decimals)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "leverage",
+            "docs": [
+              "1 for spot; 2–50 for perp"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "entry_price",
+            "docs": [
+              "All prices use 6 decimals (e.g. 150_500_000 = $150.50)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "limit_price",
+            "docs": [
+              "Target fill price for limit orders (0 for market orders)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "take_profit_price",
+            "docs": [
+              "0 = not set"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "stop_loss_price",
+            "docs": [
+              "0 = not set"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "liquidation_price",
+            "docs": [
+              "0 for spot positions"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "PositionStatus"
+              }
+            }
+          },
+          {
+            "name": "opened_at",
+            "type": "i64"
+          },
+          {
+            "name": "filled_at",
+            "docs": [
+              "0 until filled (relevant for limit orders)"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "closed_at",
+            "docs": [
+              "0 until closed"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "close_price",
+            "type": "u64"
+          },
+          {
+            "name": "realized_pnl",
+            "docs": [
+              "Signed realized PnL in USDT (6 decimals) — set on close"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "close_reason",
+            "type": {
+              "defined": {
+                "name": "CloseReason"
+              }
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PositionCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "position_id",
+            "type": "u64"
+          },
+          {
+            "name": "pair_index",
+            "type": "u8"
+          },
+          {
+            "name": "margin_returned",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PositionClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "position_id",
+            "type": "u64"
+          },
+          {
+            "name": "pair_index",
+            "type": "u8"
+          },
+          {
+            "name": "trade_mode",
+            "type": {
+              "defined": {
+                "name": "TradeMode"
+              }
+            }
+          },
+          {
+            "name": "direction",
+            "type": {
+              "defined": {
+                "name": "Direction"
+              }
+            }
+          },
+          {
+            "name": "size_usd",
+            "type": "u64"
+          },
+          {
+            "name": "margin_usd",
+            "type": "u64"
+          },
+          {
+            "name": "entry_price",
+            "type": "u64"
+          },
+          {
+            "name": "close_price",
+            "type": "u64"
+          },
+          {
+            "name": "realized_pnl",
+            "type": "i64"
+          },
+          {
+            "name": "close_reason",
+            "type": {
+              "defined": {
+                "name": "CloseReason"
+              }
+            }
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PositionOpened",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "position_id",
+            "type": "u64"
+          },
+          {
+            "name": "pair_index",
+            "type": "u8"
+          },
+          {
+            "name": "trade_mode",
+            "type": {
+              "defined": {
+                "name": "TradeMode"
+              }
+            }
+          },
+          {
+            "name": "direction",
+            "type": {
+              "defined": {
+                "name": "Direction"
+              }
+            }
+          },
+          {
+            "name": "order_type",
+            "type": {
+              "defined": {
+                "name": "OrderType"
+              }
+            }
+          },
+          {
+            "name": "size_usd",
+            "type": "u64"
+          },
+          {
+            "name": "margin_usd",
+            "type": "u64"
+          },
+          {
+            "name": "leverage",
+            "type": "u8"
+          },
+          {
+            "name": "entry_price",
+            "type": "u64"
+          },
+          {
+            "name": "limit_price",
+            "type": "u64"
+          },
+          {
+            "name": "take_profit_price",
+            "type": "u64"
+          },
+          {
+            "name": "stop_loss_price",
+            "type": "u64"
+          },
+          {
+            "name": "liquidation_price",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PositionStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "PendingFill"
+          },
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Closed"
+          },
+          {
+            "name": "Liquidated"
+          },
+          {
+            "name": "Cancelled"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProgramConfig",
+      "docs": [
+        "Global program configuration"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury",
+            "type": "pubkey"
+          },
+          {
+            "name": "authorized_executors",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SessionToken",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "target_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "session_signer",
+            "type": "pubkey"
+          },
+          {
+            "name": "valid_until",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TradeMode",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Spot"
+          },
+          {
+            "name": "Perp"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserAccount",
+      "docs": [
+        "One unified account per user — single USDT balance covering all pairs"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "usdt_balance",
+            "docs": [
+              "Total USDT balance including locked margin (6 decimals)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "locked_margin_usd",
+            "docs": [
+              "Margin currently locked in active/pending positions (6 decimals)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_positions",
+            "docs": [
+              "Monotonically increasing counter — used as PDA seed for positions"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
