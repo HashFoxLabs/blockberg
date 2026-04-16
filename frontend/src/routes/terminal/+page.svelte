@@ -1312,8 +1312,10 @@ function maybeOfferDevnetFunding() {
 					<div class="ob-scroll">
 						<div class="ob-side ob-asks-wrap">
 							{#each [...orderBookData.asks].reverse() as row}
-								<div class="ob-row ob-ask-row">
-									<div class="ob-depth ob-depth-ask" style="width: {(row.size / maxSz) * 100}%"></div>
+								<div
+									class="ob-row ob-ask-row"
+									style="--ob-depth-pct: {Math.min(100, (row.size / maxSz) * 100)}%"
+								>
 									<span class="ob-p ob-ask-p">{row.price.toFixed(4)}</span>
 									<span class="ob-s">{row.size.toFixed(4)}</span>
 									<span class="ob-t">{row.total.toFixed(4)}</span>
@@ -1326,8 +1328,10 @@ function maybeOfferDevnetFunding() {
 						</div>
 						<div class="ob-side ob-bids-wrap">
 							{#each orderBookData.bids as row}
-								<div class="ob-row ob-bid-row">
-									<div class="ob-depth ob-depth-bid" style="width: {(row.size / maxSz) * 100}%"></div>
+								<div
+									class="ob-row ob-bid-row"
+									style="--ob-depth-pct: {Math.min(100, (row.size / maxSz) * 100)}%"
+								>
 									<span class="ob-p ob-bid-p">{row.price.toFixed(4)}</span>
 									<span class="ob-s">{row.size.toFixed(4)}</span>
 									<span class="ob-t">{row.total.toFixed(4)}</span>
@@ -2130,23 +2134,23 @@ function maybeOfferDevnetFunding() {
 		z-index: 1;
 	}
 
-	.ob-depth {
-		position: absolute;
-		left: 0;
-		top: 0;
-		bottom: 0;
-		opacity: 0.12;
-		pointer-events: none;
+	/* Full-row depth: strong under the proportional width, faint tint across the rest (no empty black). */
+	.ob-ask-row {
+		background: linear-gradient(
+			90deg,
+			rgba(246, 70, 93, 0.14) 0%,
+			rgba(246, 70, 93, 0.07) min(var(--ob-depth-pct, 0%), 100%),
+			rgba(246, 70, 93, 0.038) 100%
+		);
 	}
 
-	.ob-depth-ask {
-		background: #f6465d;
-		right: auto;
-	}
-
-	.ob-depth-bid {
-		background: #00ff00;
-		right: auto;
+	.ob-bid-row {
+		background: linear-gradient(
+			90deg,
+			rgba(0, 255, 0, 0.12) 0%,
+			rgba(0, 255, 0, 0.065) min(var(--ob-depth-pct, 0%), 100%),
+			rgba(0, 255, 0, 0.034) 100%
+		);
 	}
 
 	.ob-ask-p {
@@ -3520,71 +3524,71 @@ function maybeOfferDevnetFunding() {
 	}
 
 	.buy-btn {
-		border-color: #00ff00;
-		color: #00ff00;
+		border-color: #0ecb81;
+		color: #0ecb81;
 	}
 
 	.buy-btn:hover:not(:disabled) {
-		background: linear-gradient(145deg, #00ff00, #00cc00);
-		color: #000;
-		border-color: #00ff00;
+		background: linear-gradient(145deg, #0ecb81, #0aa06e);
+		color: #04110b;
+		border-color: #0ecb81;
 	}
 
 	.buy-btn.active {
-		background: rgba(0, 255, 0, 0.1);
-		box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
-		border-color: #00ff00;
+		background: rgba(14, 203, 129, 0.12);
+		box-shadow: 0 0 0 1px rgba(14, 203, 129, 0.22);
+		border-color: #0ecb81;
 	}
 
 	.sell-btn {
-		border-color: #ff4444;
-		color: #ff4444;
+		border-color: #f6465d;
+		color: #f6465d;
 	}
 
 	.sell-btn:hover:not(:disabled) {
-		background: linear-gradient(145deg, #ff4444, #cc3333);
+		background: linear-gradient(145deg, #f6465d, #d63c52);
 		color: #fff;
-		border-color: #ff4444;
+		border-color: #f6465d;
 	}
 
 	.sell-btn.active {
-		background: rgba(255, 68, 68, 0.1);
-		box-shadow: 0 0 15px rgba(255, 68, 68, 0.4);
-		border-color: #ff4444;
+		background: rgba(246, 70, 93, 0.12);
+		box-shadow: 0 0 0 1px rgba(246, 70, 93, 0.22);
+		border-color: #f6465d;
 	}
 
 	.long-btn {
-		border-color: #00ff00;
-		color: #00ff00;
+		border-color: #0ecb81;
+		color: #0ecb81;
 	}
 
 	.long-btn:hover:not(:disabled) {
-		background: linear-gradient(145deg, #00ff00, #00cc00);
-		color: #000;
-		border-color: #00ff00;
+		background: linear-gradient(145deg, #0ecb81, #0aa06e);
+		color: #04110b;
+		border-color: #0ecb81;
 	}
 
 	.long-btn.active {
-		background: rgba(0, 255, 0, 0.1);
-		box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
-		border-color: #00ff00;
+		background: rgba(14, 203, 129, 0.12);
+		box-shadow: 0 0 0 1px rgba(14, 203, 129, 0.22);
+		border-color: #0ecb81;
 	}
 
 	.short-btn {
-		border-color: #ff4444;
-		color: #ff4444;
+		border-color: #f6465d;
+		color: #f6465d;
 	}
 
 	.short-btn:hover:not(:disabled) {
-		background: linear-gradient(145deg, #ff4444, #cc3333);
+		background: linear-gradient(145deg, #f6465d, #d63c52);
 		color: #fff;
-		border-color: #ff4444;
+		border-color: #f6465d;
 	}
 
 	.short-btn.active {
-		background: rgba(255, 68, 68, 0.1);
-		box-shadow: 0 0 15px rgba(255, 68, 68, 0.4);
-		border-color: #ff4444;
+		background: rgba(246, 70, 93, 0.12);
+		box-shadow: 0 0 0 1px rgba(246, 70, 93, 0.22);
+		border-color: #f6465d;
 	}
 
 	.btn-text {

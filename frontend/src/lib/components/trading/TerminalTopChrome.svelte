@@ -381,7 +381,10 @@
 
 <div class="terminal-top-chrome">
 	<div class="command-bar">
-		<a href="/landing" class="logo">BLOCKBERG</a>
+		<a href="/landing" class="logo">
+			<img class="logo-icon" src="/favicon.png" alt="HASHFOX" />
+			<span class="logo-text">HASHFOX</span>
+		</a>
 		<div class="nav-links">
 			<a href="/terminal" class="nav-link" class:active={activeSection === 'terminal'}>TERMINAL</a>
 			<a href="/dashboard" class="nav-link" class:active={activeSection === 'dashboard'}>HISTORY</a>
@@ -694,13 +697,26 @@
 	}
 
 	.logo {
+		display: inline-flex;
+		align-items: center;
+		gap: 10px;
+		text-decoration: none;
+		flex-shrink: 0;
+		white-space: nowrap;
+	}
+
+	.logo-icon {
+		width: 24px;
+		height: 24px;
+		object-fit: contain;
+		filter: drop-shadow(0 0 10px rgba(255, 149, 0, 0.18));
+	}
+
+	.logo-text {
 		font-size: 19px;
 		font-weight: bold;
 		color: #ff9500;
 		letter-spacing: 2px;
-		text-decoration: none;
-		flex-shrink: 0;
-		white-space: nowrap;
 	}
 
 	.nav-links {

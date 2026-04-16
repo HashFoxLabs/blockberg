@@ -1,5 +1,4 @@
 <script lang="ts">
-	import logo from '$lib/assets/Logo_Blockberk.png';
 	import iconConnectWallet from '$lib/assets/Icon_connect_your_wallet-removebg-preview.png';
 	import iconMoneybag from '$lib/assets/moneybag-removebg-preview.png';
 	import iconUptrend from '$lib/assets/uptrend-price-line-removebg-preview.png';
@@ -268,8 +267,8 @@
 	<nav class="navbar">
 		<div class="nav-content">
 			<div class="logo">
-				<img src={logo} alt="Blockberg" class="logo-icon" />
-				<span class="logo-text">BLOCKBERG</span>
+				<img src="/favicon.png" alt="HASHFOX" class="logo-icon" />
+				<span class="logo-text">HASHFOX</span>
 			</div>
 			<div class="nav-links">
 				<a href="/" class="nav-link active">Home</a>
@@ -425,7 +424,7 @@
 	<section id="trading" class="trading-section">
 		<div class="section-content">
 			<div class="section-header">
-				<h2 class="section-title">How to Paper Trade on <span style="color: #ff9500;">BLOCKBERG</span></h2>
+				<h2 class="section-title">How to Paper Trade on <span style="color: #ff9500;">HASHFOX</span></h2>
 				<p class="section-subtitle">Follow these steps and start trading without risk</p>
 			</div>
 

@@ -22,6 +22,30 @@
 	let isLoading = true;
 
 	let tradeHistory: any[] = [];
+	/** Available paper USDT (same as terminal free balance); `null` = not loaded yet */
+	let usdtAvailable: number | null = null;
+
+	async function refreshUsdtBalance() {
+		if (!connectedWallet?.connected) {
+			usdtAvailable = null;
+			return;
+		}
+		try {
+			const data = await magicBlockClient.getAllUserAccountData();
+			const row = data[0];
+			if (!row) {
+				usdtAvailable = 0;
+				return;
+			}
+			const free =
+				typeof row.availableUsd === 'number'
+					? row.availableUsd
+					: Math.max(0, row.tokenInBalance - (row.lockedMarginUsd ?? 0));
+			usdtAvailable = free;
+		} catch {
+			usdtAvailable = null;
+		}
+	}
 
 	walletStore.subscribe(wallet => {
 		connectedWallet = wallet;
@@ -29,9 +53,11 @@
 			walletAddress = wallet.publicKey.toBase58();
 			magicBlockClient.setConnectedWallet(wallet.adapter);
 			loadHistory();
+			void refreshUsdtBalance();
 		} else {
 			walletAddress = '';
 			tradeHistory = [];
+			usdtAvailable = null;
 			isLoading = false;
 		}
 	});
@@ -166,7 +192,10 @@
 	<TerminalTopChrome
 		activeSection="dashboard"
 		on:prices={onChromePrices}
-		on:accountschanged={() => void loadHistory()}
+		on:accountschanged={() => {
+			void loadHistory();
+			void refreshUsdtBalance();
+		}}
 	/>
 
 	<div class="history-body">
@@ -180,8 +209,22 @@
 		{:else}
 			<div class="history-panel">
 				<div class="history-header">
-					<span class="history-title">TRANSACTION HISTORY</span>
-					<button class="hist-refresh" on:click={loadHistory}>↻ Refresh</button>
+					<div class="history-header-main">
+						<span class="history-title">TRANSACTION HISTORY</span>
+						{#if usdtAvailable !== null}
+							<span class="history-usdt" title="Available paper USDT (after locked margin)">
+								{usdtAvailable.toFixed(2)} USDT
+							</span>
+						{:else}
+							<span class="history-usdt history-usdt--pending" title="Loading balance…">…</span>
+						{/if}
+					</div>
+					<button
+						class="hist-refresh"
+						on:click={() => {
+							void loadHistory();
+							void refreshUsdtBalance();
+						}}>↻ Refresh</button>
 				</div>
 
 				{#if isLoading}
@@ -372,9 +415,18 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		gap: 12px;
 		padding: 8px 12px;
 		border-bottom: 1px solid #1a1a1a;
 		flex-shrink: 0;
+	}
+
+	.history-header-main {
+		display: flex;
+		align-items: baseline;
+		flex-wrap: wrap;
+		gap: 10px 14px;
+		min-width: 0;
 	}
 
 	.history-title {
@@ -382,6 +434,19 @@
 		font-weight: 700;
 		color: #ff9500;
 		letter-spacing: 0.5px;
+	}
+
+	.history-usdt {
+		font-size: 11px;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		color: #2ebd85;
+		letter-spacing: 0.03em;
+	}
+
+	.history-usdt--pending {
+		color: #5c6570;
+		font-weight: 600;
 	}
 
 	.hist-refresh {

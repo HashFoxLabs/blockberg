@@ -93,6 +93,10 @@ function txMessageAccountKeys(tx: {
 	return message?.staticAccountKeys ?? message?.accountKeys ?? [];
 }
 
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // All markets available in the UI (top 20 by market cap, excl. stablecoins)
 export const ALL_MARKETS = [
 	'BTC', 'ETH', 'BNB', 'SOL', 'XRP',
@@ -908,6 +912,30 @@ export class MagicBlockClient {
 		return this.spotIxDiscriminatorsPromise;
 	}
 
+	/**
+	 * Fetches parsed txs in signature order without `getTransactions` (often missing / heavily
+	 * rate-limited on hosted RPCs) and without large parallel bursts that trigger HTTP 429.
+	 */
+	private async fetchSpotTransactionsThrottled(
+		signatures: string[]
+	): Promise<(Awaited<ReturnType<Connection['getTransaction']>> | null)[]> {
+		const txOpts = { maxSupportedTransactionVersion: 0 as const };
+		const out: (Awaited<ReturnType<Connection['getTransaction']>> | null)[] = [];
+		const inFlight = 2;
+		const betweenBatchMs = 160;
+		for (let i = 0; i < signatures.length; i += inFlight) {
+			const batch = signatures.slice(i, i + inFlight);
+			const rows = await Promise.all(
+				batch.map((signature) => this.connection.getTransaction(signature, txOpts))
+			);
+			out.push(...rows);
+			if (i + inFlight < signatures.length) {
+				await sleep(betweenBatchMs);
+			}
+		}
+		return out;
+	}
+
 	async fetchSpotTradeHistory(): Promise<any[]> {
 		const currentWallet = this.getCurrentWallet();
 		if (!currentWallet) {
@@ -916,8 +944,9 @@ export class MagicBlockClient {
 
 		const spotTrades: any[] = [];
 		const programIdStr = PAPER_TRADING_PROGRAM_ID.toBase58();
-		const SIG_LIMIT = 32;
-		const TX_BATCH = 20;
+		const SIG_LIMIT = 24;
+		const TX_BATCH = 6;
+		const betweenChunkMs = 200;
 
 		try {
 			const { buy: buyDisc, sell: sellDisc } = await this.getSpotIxDiscriminators();
@@ -932,9 +961,10 @@ export class MagicBlockClient {
 					const sigList = signatures.map((s) => s.signature);
 					for (let i = 0; i < sigList.length; i += TX_BATCH) {
 						const chunk = sigList.slice(i, i + TX_BATCH);
-						const txs = await this.connection.getTransactions(chunk, {
-							maxSupportedTransactionVersion: 0,
-						});
+						const txs = await this.fetchSpotTransactionsThrottled(chunk);
+						if (i + TX_BATCH < sigList.length) {
+							await sleep(betweenChunkMs);
+						}
 						for (let j = 0; j < txs.length; j++) {
 							const tx = txs[j];
 							const signature = chunk[j];
@@ -987,13 +1017,9 @@ export class MagicBlockClient {
 			};
 
 			const entries = Object.entries(TRADING_PAIRS);
-			const PAIR_CONCURRENCY = 6;
-			for (let i = 0; i < entries.length; i += PAIR_CONCURRENCY) {
-				const slice = entries.slice(i, i + PAIR_CONCURRENCY);
-				const pairChunks = await Promise.all(
-					slice.map(([symbol, pairIndex]) => perPair(symbol, pairIndex))
-				);
-				for (const rows of pairChunks) spotTrades.push(...rows);
+			for (const [symbol, pairIndex] of entries) {
+				const rows = await perPair(symbol, pairIndex);
+				spotTrades.push(...rows);
 			}
 
 			spotTrades.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
@@ -1018,15 +1044,13 @@ export class MagicBlockClient {
 		const tradeHistory: any[] = [];
 
 		try {
-			const [allAccounts, spotTrades] = await Promise.all([
-				this.connection.getProgramAccounts(PAPER_TRADING_PROGRAM_ID, {
-					filters: [{ memcmp: { offset: 8, bytes: currentWallet.publicKey.toBase58() } }],
-				}),
-				this.fetchSpotTradeHistory().catch((spotErr) => {
-					console.error('Error fetching spot trades:', spotErr);
-					return [] as any[];
-				}),
-			]);
+			const allAccounts = await this.connection.getProgramAccounts(PAPER_TRADING_PROGRAM_ID, {
+				filters: [{ memcmp: { offset: 8, bytes: currentWallet.publicKey.toBase58() } }],
+			});
+			const spotTrades = await this.fetchSpotTradeHistory().catch((spotErr) => {
+				console.error('Error fetching spot trades:', spotErr);
+				return [] as any[];
+			});
 
 			for (const accountInfo of allAccounts) {
 				try {
