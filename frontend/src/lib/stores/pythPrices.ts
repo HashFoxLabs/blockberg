@@ -28,13 +28,9 @@ const emptyPrice = (): PriceData => ({
 	spread: 0,
 });
 
-export const pythPrices = writable<Record<string, PriceData>>({
-	SOL: emptyPrice(),
-	BTC: emptyPrice(),
-	ETH: emptyPrice(),
-	AVAX: emptyPrice(),
-	LINK: emptyPrice(),
-});
+export const pythPrices = writable<Record<string, PriceData>>(
+	Object.fromEntries(Object.keys(PYTH_FEEDS).map((s) => [s, emptyPrice()]))
+);
 
 export const pythConnectionStatus = writable('Initializing...');
 export const pythLastUpdate = writable(0);

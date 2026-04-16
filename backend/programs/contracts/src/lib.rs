@@ -43,7 +43,8 @@ pub struct UserAccount {
 pub struct Position {
     pub owner: Pubkey,
     pub position_id: u64,
-    /// 0=SOL, 1=BTC, 2=ETH, 3=AVAX, 4=LINK
+    /// 0=SOL,1=BTC,2=ETH,3=AVAX,4=LINK,5=BNB,6=XRP,7=DOGE,8=ADA,9=TRX
+    /// 10=DOT,11=MATIC,12=LTC,13=UNI,14=ATOM,15=NEAR,16=APT,17=SUI,18=INJ,19=TAO
     pub pair_index: u8,
 
     pub trade_mode: TradeMode,
@@ -548,7 +549,7 @@ pub mod paper_trading {
 // ============= HELPER FUNCTIONS =============
 
 fn validate_pair_index(pair_index: u8) -> Result<()> {
-    require!(pair_index <= 4, ErrorCode::InvalidPairIndex);
+    require!(pair_index <= 19, ErrorCode::InvalidPairIndex);
     Ok(())
 }
 
@@ -925,7 +926,7 @@ pub enum ErrorCode {
     #[msg("Invalid leverage — spot must be 1x; perp valid tiers: 2,3,5,10,15,20,25,50")]
     InvalidLeverage,
 
-    #[msg("Invalid pair index (0=SOL, 1=BTC, 2=ETH, 3=AVAX, 4=LINK)")]
+    #[msg("Invalid pair index (0-19: SOL,BTC,ETH,AVAX,LINK,BNB,XRP,DOGE,ADA,TRX,DOT,MATIC,LTC,UNI,ATOM,NEAR,APT,SUI,INJ,TAO)")]
     InvalidPairIndex,
 
     #[msg("Position is not active")]

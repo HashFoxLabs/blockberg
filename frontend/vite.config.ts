@@ -6,10 +6,14 @@ export default defineConfig({
 	plugins: [
 		sveltekit(),
 		nodePolyfills({
-			include: ['process', 'buffer', 'util', 'stream', 'events'],
+			// Omit `process` from polyfills: injecting `globalThis.process` breaks Node SSR
+			// (`process.cwd is not a function` in SvelteKit), and stdlib's `process/` proxy
+			// breaks esbuild's dependency scan for some wallet deps.
+			include: ['buffer', 'util', 'stream', 'events'],
 			globals: {
-				process: true,
+				process: false,
 				Buffer: true,
+				global: true,
 			},
 		}),
 	],

@@ -2,7 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { get } from 'svelte/store';
 	import { page } from '$app/stores';
-	import { magicBlockClient, PositionDirection, PERP_LEVERAGE_TIERS, TRADING_PAIRS } from '$lib/magicblock';
+	import { magicBlockClient, PositionDirection, PERP_LEVERAGE_TIERS, TRADING_PAIRS, ALL_MARKETS } from '$lib/magicblock';
 	import {
 		pythPrices as priceStore,
 		pythConnectionStatus,
@@ -11,21 +11,18 @@
 		type PriceData,
 	} from '$lib/stores/pythPrices';
 	import { walletStore } from '$lib/wallet/stores';
-	import { tradingModeStore, type TradingContext } from '$lib/stores/tradingMode';
 	import {
 		binanceOrderBook,
 		binanceTrades,
 		connectBinance,
 		disconnectBinance,
 	} from '$lib/stores/binanceOrderbook';
-	import MarketSelectNav from '$lib/components/trading/MarketSelectNav.svelte';
+	import TerminalTopChrome from '$lib/components/trading/TerminalTopChrome.svelte';
 	import PythChart from '$lib/components/trading/PythChart.svelte';
-	import WalletButton from '$lib/wallet/WalletButton.svelte';
 	import Toast from '$lib/toast/Toast.svelte';
 	import { toastStore } from '$lib/toast/store';
 	import * as ENV from '$lib/env';
 
-	let businessNews: any[] = [];
 	let prices: Record<string, PriceData> = $priceStore;
 	let selectedTab = 'SOL';
 	let chartView: 'tradingview' | 'pyth' = 'tradingview';
@@ -46,6 +43,7 @@
 	let tradingTabUI: 'spot' | 'limit' | 'perps' = 'spot';
 	let sizeDenom: 'USDT' | 'BASE' = 'USDT';
 	let orderBookColumn: 'book' | 'trades' = 'book';
+	let positionsDockTab: 'orders' | 'balance' = 'balance';
 	let orderBookPrecision = '0.01';
 	let activePositions: any[] = [];
 	let onChainPositions: any[] = [];
@@ -92,18 +90,6 @@
 
 	const DEVNET_FUNDING_DISMISS_KEY = 'blockberg_devnet_funding_dismissed';
 
-	// Trading mode context
-	let tradingContext: TradingContext = { mode: 'regular' };
-
-	// Subscribe to trading mode changes
-	tradingModeStore.subscribe(context => {
-		tradingContext = context;
-		console.log('[TRADING MODE] Mode changed:', context);
-		// Refresh balances when mode changes
-		if (connectedWallet?.connected) {
-			refreshTradingData();
-		}
-	});
 
 	// Function to refresh trading data based on mode
 	async function refreshTradingData() {
@@ -284,31 +270,6 @@
 		currentTime = new Date().toLocaleTimeString();
 	}
 
-	async function fetchBusinessNews() {
-		try {
-			const rssUrl = 'https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en';
-			const response = await fetch(`${ENV.RSS2JSON_API_URL}?rss_url=${encodeURIComponent(rssUrl)}`);
-
-			if (!response.ok) {
-				throw new Error(`HTTP ${response.status}`);
-			}
-
-			const data = await response.json();
-
-			if (data.items && data.items.length > 0) {
-				businessNews = data.items.map((item: any) => ({
-					title: item.title,
-					url: item.link,
-					imageurl: item.enclosure?.link || item.thumbnail || null,
-					source: item.author || 'Google News'
-				}));
-			}
-		} catch (error) {
-			console.error('Failed to fetch business news:', error);
-			businessNews = [];
-		}
-	}
-
 	function startPythLazerUpdates() {
 		priceStore.subscribe((p) => {
 			prices = p;
@@ -325,12 +286,30 @@
 	function precisionOptionsForTab(tab: string): string[] {
 		switch (tab) {
 			case 'BTC':
-			case 'ETH':
 				return ['1', '5', '10'];
+			case 'ETH':
+			case 'BNB':
+			case 'LTC':
+				return ['0.1', '1', '5'];
 			case 'SOL':
+			case 'AVAX':
+			case 'DOT':
+			case 'ATOM':
+			case 'APT':
+			case 'INJ':
+			case 'TAO':
 				return ['0.01', '0.05', '0.1'];
 			case 'LINK':
+			case 'NEAR':
+			case 'UNI':
+			case 'SUI':
 				return ['0.001', '0.01', '0.05'];
+			case 'XRP':
+			case 'DOGE':
+			case 'ADA':
+			case 'TRX':
+			case 'MATIC':
+				return ['0.0001', '0.001', '0.01'];
 			default:
 				return ['0.01', '0.05', '0.1'];
 		}
@@ -416,6 +395,11 @@
 		mockTokenBalances[TRADING_PAIRS.AVAX] ??
 		mockTokenBalances[TRADING_PAIRS.LINK] ??
 		null;
+
+	$: heldTokens = (Object.entries(TRADING_PAIRS) as [string, number][]).filter(([sym, idx]) => {
+		const row = mockTokenBalances[idx];
+		return row && row.tokenOutBalance > 0.000001;
+	});
 
 	// Only perp positions show in the open orders dock — spot trades are instant and only affect balance
 	$: allDockOrders = onChainPositions.filter(
@@ -1191,24 +1175,23 @@ function maybeOfferDevnetFunding() {
 		};
 
 		initializeWallet();
-		fetchBusinessNews();
 		startPythLazerUpdates();
 		updateTime();
 		connectBinance(selectedTab);
 
 		const qPair = get(page).url.searchParams.get('pair');
-		if (qPair && qPair in TRADING_PAIRS) {
+		if (qPair && (ALL_MARKETS as readonly string[]).includes(qPair)) {
 			void switchTab(qPair);
 		}
 
 		setInterval(updateTime, 1000);
 
-		// Fetch positions regularly (every 5 seconds for better responsiveness)
+		// Fetch positions every 15 seconds to avoid devnet RPC rate limits
 		setInterval(async () => {
 			if (connectedWallet?.connected) {
 				await fetchOnChainPositions();
 			}
-		}, 5000);
+		}, 15000);
 
 		// Initial position fetch when page loads (after wallet might be connected)
 		setTimeout(async () => {
@@ -1226,125 +1209,11 @@ function maybeOfferDevnetFunding() {
 </script>
 
 <div class="bloomberg">
-	<div class="command-bar">
-		<a href="/landing" class="logo">BLOCKBERG</a>
-		<div class="nav-links">
-			<a href="/terminal" class="nav-link active">TERMINAL</a>
-			<a href="/dashboard" class="nav-link">HISTORY</a>
-		</div>
-		<MarketSelectNav selectedSymbol={selectedTab} on:select={(e) => void switchTab(e.detail.symbol)} />
-		<div class="pyth-status">
-			<span class="status-label">PYTH:</span>
-			<span class="status-value">{pythStatus}</span>
-			{#if pythLastUpdate > 0}
-				<span class="status-age">{Math.floor((Date.now() - pythLastUpdate) / 1000)}s ago</span>
-			{/if}
-		</div>
-		<div class="magicblock-status">
-			<span class="status-label">MAGICBLOCK:</span>
-			{#if connectedWallet?.connected && !fastTradingSessionActive && true}
-				<button
-					type="button"
-					class="status-value magicblock-session-trigger"
-					title="Fund session for one-click trading"
-					on:click={openSessionFundModal}
-				>
-					{magicBlockStatus}
-				</button>
-			{:else}
-				<span class="status-value">{magicBlockStatus}</span>
-			{/if}
-			{#if connectedWallet?.connected}
-				<span class="wallet-addr">{walletAddress.substring(0, 4)}...{walletAddress.substring(walletAddress.length - 4)}</span>
-				<span class="wallet-balance">{walletBalance.toFixed(4)} SOL</span>
-				{#if walletBalance < 0.1}
-					<button class="airdrop-btn" on:click={requestAirdrop}>AIRDROP</button>
-				{/if}
-				{#if (Object.keys(accountsInitialized).length === 0 || Object.values(accountsInitialized).some(initialized => !initialized))}
-					<button class="initialize-btn" on:click={initializeAllAccounts}>INITIALIZE</button>
-				{/if}
-				{#if connectedWallet?.connected && Object.values(accountsInitialized).length > 0 && Object.values(accountsInitialized).every(Boolean) && !fastTradingSessionActive}
-					<button class="initialize-btn fast-session-btn" type="button" on:click={enableFastTradingSession}>FAST TRADES</button>
-				{/if}
-				{#if connectedWallet?.connected && Object.values(accountsInitialized).length > 0 && Object.values(accountsInitialized).every(Boolean) && fastTradingSessionActive}
-					<button
-						class="initialize-btn session-end-btn"
-						type="button"
-						disabled={disconnectSessionLoading}
-						title="Revoke session on-chain and clear local keys"
-						on:click={disconnectPaperSession}
-					>
-						{disconnectSessionLoading ? '…' : 'END SESSION'}
-					</button>
-				{/if}
-			{/if}
-		</div>
-		<div class="wallet-section">
-			<WalletButton />
-		</div>
-	</div>
-
-	<div class="ticker-bar">
-		<div class="ticker-item">
-			SOL/USD <span class="price">{prices.SOL.price.toFixed(2)}</span>
-			<span class={prices.SOL.change >= 0 ? 'change-up' : 'change-down'}>
-				{prices.SOL.change >= 0 ? '▲' : '▼'} {Math.abs(prices.SOL.change).toFixed(2)}%
-			</span>
-			<span class="confidence" title="Confidence Interval">±{prices.SOL.confidence.toFixed(4)}</span>
-		</div>
-		<div class="ticker-item">
-			BTC/USD <span class="price">{prices.BTC.price.toFixed(2)}</span>
-			<span class={prices.BTC.change >= 0 ? 'change-up' : 'change-down'}>
-				{prices.BTC.change >= 0 ? '▲' : '▼'} {Math.abs(prices.BTC.change).toFixed(2)}%
-			</span>
-			<span class="confidence" title="Confidence Interval">±{prices.BTC.confidence.toFixed(2)}</span>
-		</div>
-		<div class="ticker-item">
-			ETH/USD <span class="price">{prices.ETH.price.toFixed(2)}</span>
-			<span class={prices.ETH.change >= 0 ? 'change-up' : 'change-down'}>
-				{prices.ETH.change >= 0 ? '▲' : '▼'} {Math.abs(prices.ETH.change).toFixed(2)}%
-			</span>
-			<span class="confidence" title="Confidence Interval">±{prices.ETH.confidence.toFixed(3)}</span>
-		</div>
-		<div class="ticker-item">
-			AVAX/USD <span class="price">{prices.AVAX.price.toFixed(2)}</span>
-			<span class={prices.AVAX.change >= 0 ? 'change-up' : 'change-down'}>
-				{prices.AVAX.change >= 0 ? '▲' : '▼'} {Math.abs(prices.AVAX.change).toFixed(2)}%
-			</span>
-			<span class="confidence" title="Confidence Interval">±{prices.AVAX.confidence.toFixed(4)}</span>
-		</div>
-		<div class="ticker-item">
-			LINK/USD <span class="price">{prices.LINK.price.toFixed(3)}</span>
-			<span class={prices.LINK.change >= 0 ? 'change-up' : 'change-down'}>
-				{prices.LINK.change >= 0 ? '▲' : '▼'} {Math.abs(prices.LINK.change).toFixed(2)}%
-			</span>
-			<span class="confidence" title="Confidence Interval">±{prices.LINK.confidence.toFixed(5)}</span>
-		</div>
-	</div>
-
-	<div class="tabs">
-		<button class="tab" class:active={selectedTab === 'SOL'} on:click={() => switchTab('SOL')}>SOL EQUITY</button>
-		<button class="tab" class:active={selectedTab === 'BTC'} on:click={() => switchTab('BTC')}>BTC EQUITY</button>
-		<button class="tab" class:active={selectedTab === 'ETH'} on:click={() => switchTab('ETH')}>ETH EQUITY</button>
-		<button class="tab" class:active={selectedTab === 'AVAX'} on:click={() => switchTab('AVAX')}>AVAX EQUITY</button>
-		<button class="tab" class:active={selectedTab === 'LINK'} on:click={() => switchTab('LINK')}>LINK EQUITY</button>
-		<div class="news-ticker-container">
-			<div class="news-ticker">
-				{#if businessNews.length > 0}
-					{#each [...businessNews, ...businessNews] as article, i}
-						<a href={article.url} target="_blank" rel="noopener noreferrer" class="ticker-news-item">
-							{#if article.imageurl}
-								<img src={article.imageurl} alt="" class="ticker-news-img" />
-							{/if}
-							<span class="ticker-news-text">{article.title}</span>
-						</a>
-					{/each}
-				{:else}
-					<span class="ticker-loading">Loading business news...</span>
-				{/if}
-			</div>
-		</div>
-	</div>
+	<TerminalTopChrome
+		activeSection="terminal"
+		selectedMarketSymbol={selectedTab}
+		on:marketselect={(e) => void switchTab(e.detail.symbol)}
+	/>
 
 	<div class="main-grid">
 		<div class="panel chart-panel">
@@ -1369,14 +1238,14 @@ function maybeOfferDevnetFunding() {
 				<div class="chart-stats">
 					<div class="stat-box">
 						<span class="stat-label">SPOT</span>
-						<span class="stat-value price-value">${prices[selectedTab].price.toFixed(2)}</span>
+						<span class="stat-value price-value">${prices[selectedTab].price.toFixed(4)}</span>
 						<span class={prices[selectedTab].change >= 0 ? 'change-up' : 'change-down'}>
 							{prices[selectedTab].change >= 0 ? '▲' : '▼'} {Math.abs(prices[selectedTab].change).toFixed(2)}%
 						</span>
 					</div>
 					<div class="stat-box">
 						<span class="stat-label">EMA</span>
-						<span class="stat-value ema-value">${prices[selectedTab].emaPrice.toFixed(2)}</span>
+						<span class="stat-value ema-value">${prices[selectedTab].emaPrice.toFixed(4)}</span>
 					</div>
 					<div class="stat-box">
 						<span class="stat-label">CONFIDENCE</span>
@@ -1403,65 +1272,6 @@ function maybeOfferDevnetFunding() {
 				{/if}
 			</div>
 
-			{#if connectedWallet?.connected}
-				<div class="chart-dock">
-					<div class="chart-dock-balances">
-						<div class="dock-header-hl">
-							<div class="dock-header-main">
-								<span class="dock-title">ACCOUNT · BALANCES</span>
-									<span class="dock-mark-upnl">
-										<span class="dock-mark-upnl-lbl">Mark uPnL</span>
-										<span
-											class="dock-mark-upnl-val"
-											class:pnl-pos={portfolioMarkUnrealizedPnlUsd >= 0}
-											class:pnl-neg={portfolioMarkUnrealizedPnlUsd < 0}
-										>
-											{portfolioMarkUnrealizedPnlUsd >= 0 ? '+' : ''}{portfolioMarkUnrealizedPnlUsd.toFixed(2)} USDT
-										</span>
-									</span>
-							</div>
-							<button type="button" class="dock-refresh-hl" on:click={() => updateWalletStatus()}>
-								↻ REFRESH
-							</button>
-						</div>
-
-						{#if firstUnifiedBalance}
-							{@const u = firstUnifiedBalance}
-							<div class="dock-usdt-strip">
-								<div class="dock-stat dock-stat--strip">
-									<span class="dock-stat-lbl">Available</span>
-									<span class="dock-stat-val">{(u.availableUsd ?? u.tokenInBalance).toFixed(2)} USDT</span>
-								</div>
-								{#if usdtReservedBreakdown.perp > 0.0001}
-								<div class="dock-stat dock-stat-reserved dock-stat--strip">
-									<span class="dock-stat-lbl">Reserved</span>
-									<span class="dock-stat-val">{usdtReservedBreakdown.perp.toFixed(2)} USDT</span>
-								</div>
-								{/if}
-								<div class="dock-stat dock-stat--strip">
-									<span class="dock-stat-lbl">Total</span>
-									<span class="dock-stat-val">{((u.availableUsd ?? u.tokenInBalance) + usdtReservedBreakdown.perp).toFixed(2)} USDT</span>
-								</div>
-							</div>
-							<div class="dock-assets-grid">
-								{#each Object.keys(TRADING_PAIRS) as sym}
-									{@const idx = TRADING_PAIRS[sym as keyof typeof TRADING_PAIRS]}
-									{@const row = mockTokenBalances[idx]}
-									<div class="dock-asset-cell" class:dock-asset-active={sym === selectedTab}>
-										<span class="dock-asset-sym">{sym}</span>
-										<span class="dock-asset-amt"
-											>{row ? row.tokenOutBalance.toFixed(synthDecimals(sym)) : '—'}</span>
-									</div>
-								{/each}
-							</div>
-						{:else if Object.values(accountsInitialized).some(Boolean)}
-							<p class="dock-hint">Loading account…</p>
-						{:else}
-							<p class="dock-hint">Initialize your paper account from the header to trade.</p>
-						{/if}
-					</div>
-				</div>
-			{/if}
 
 		</div>
 
@@ -1717,13 +1527,13 @@ function maybeOfferDevnetFunding() {
 							Connect wallet
 						{:else if tradingTabUI === 'perps'}
 							{@const mktPx = prices[selectedTab]?.price}
-							{tradeSide === 'buy' ? 'Long' : 'Short'} {selectedTab} @ {mktPx > 0 ? '$' + mktPx.toFixed(2) : '…'}
+							{tradeSide === 'buy' ? 'Long' : 'Short'} {selectedTab} @ {mktPx > 0 ? '$' + mktPx.toFixed(4) : '…'}
 						{:else if tradingTabUI === 'limit'}
 							{@const limPx = parseFloat(String(limitPriceInput ?? ''))}
-							{tradeSide === 'buy' ? 'Buy' : 'Sell'} {selectedTab} limit @ ${Number.isFinite(limPx) && limPx > 0 ? limPx.toFixed(2) : '…'}
+							{tradeSide === 'buy' ? 'Buy' : 'Sell'} {selectedTab} limit @ ${Number.isFinite(limPx) && limPx > 0 ? limPx.toFixed(4) : '…'}
 						{:else}
 							{@const mktPx = prices[selectedTab]?.price}
-							{tradeSide === 'buy' ? 'Buy' : 'Sell'} {selectedTab} @ {mktPx > 0 ? '$' + mktPx.toFixed(2) : '…'}
+							{tradeSide === 'buy' ? 'Buy' : 'Sell'} {selectedTab} @ {mktPx > 0 ? '$' + mktPx.toFixed(4) : '…'}
 						{/if}
 					</button>
 				</div>
@@ -1734,9 +1544,31 @@ function maybeOfferDevnetFunding() {
 			<div class="positions-strip">
 				<div class="chart-positions-panel chart-dock-orders positions-strip-inner">
 					<div class="chart-positions-header dock-orders-header">
-						<span class="chart-positions-title">OPEN POSITIONS · ORDERS</span>
+						<div class="dock-tab-btns">
+							<button
+								type="button"
+								class="dock-tab-btn"
+								class:dock-tab-active={positionsDockTab === 'balance'}
+								on:click={() => (positionsDockTab = 'balance')}
+							>
+								Balance
+							</button>
+							<button
+								type="button"
+								class="dock-tab-btn"
+								class:dock-tab-active={positionsDockTab === 'orders'}
+								on:click={() => (positionsDockTab = 'orders')}
+							>
+								Open Orders
+							</button>
+							{#if portfolioMarkUnrealizedPnlUsd !== 0}
+								<span class="dock-upnl-pill" class:pnl-pos={portfolioMarkUnrealizedPnlUsd >= 0} class:pnl-neg={portfolioMarkUnrealizedPnlUsd < 0}>
+									uPnL {portfolioMarkUnrealizedPnlUsd >= 0 ? '+' : ''}{portfolioMarkUnrealizedPnlUsd.toFixed(2)} USDT
+								</span>
+							{/if}
+						</div>
 						<div class="chart-positions-header-actions">
-							{#if allDockOrders.length > 0}
+							{#if positionsDockTab === 'orders' && allDockOrders.length > 0}
 								<button
 									type="button"
 									class="chart-positions-close-all"
@@ -1760,12 +1592,14 @@ function maybeOfferDevnetFunding() {
 							</button>
 						</div>
 					</div>
-					{#if allDockOrders.length === 0}
-						<div class="chart-positions-empty">
-							No open or pending paper positions. Submit a trade to see it here.
-						</div>
-					{:else}
-						<div class="chart-positions-list">
+
+					{#if positionsDockTab === 'orders'}
+						{#if allDockOrders.length === 0}
+							<div class="chart-positions-empty">
+								No open or pending paper positions. Submit a trade to see it here.
+							</div>
+						{:else}
+							<div class="chart-positions-list">
 							{#each allDockOrders as p}
 								{@const isPerp = p.tradeMode === 'perp'}
 								{@const sideLabel = isPerp
@@ -1817,15 +1651,13 @@ function maybeOfferDevnetFunding() {
 									<div class="cp-block cp-block-num">
 										<span class="cp-block-label">{p.status === 'PENDING' ? 'Limit' : 'Entry'}</span>
 										<span class="cp-block-value"
-											>${(p.status === 'PENDING' && p.limitPrice != null ? p.limitPrice : entry).toFixed(
-												2
-											)}</span>
+											>${(p.status === 'PENDING' && p.limitPrice != null ? p.limitPrice : entry).toFixed(4)}</span>
 									</div>
 
 									<div class="cp-block cp-block-num">
 										<span class="cp-block-label">Current</span>
 										<span class="cp-block-value"
-											>{markPx > 0 ? '$' + markPx.toFixed(2) : '—'}</span>
+											>{markPx > 0 ? '$' + markPx.toFixed(4) : '—'}</span>
 									</div>
 
 									<div class="cp-block cp-block-num">
@@ -1866,7 +1698,7 @@ function maybeOfferDevnetFunding() {
 									<div class="cp-block cp-block-num">
 										<span class="cp-block-label">Liq. price</span>
 										<span class="cp-block-value" class:cp-liq-val={liqPx !== null && isPerp}
-											>{liqPx !== null && isPerp ? '$' + liqPx.toFixed(2) : '—'}</span>
+											>{liqPx !== null && isPerp ? '$' + liqPx.toFixed(4) : '—'}</span>
 									</div>
 
 									<button
@@ -1881,9 +1713,69 @@ function maybeOfferDevnetFunding() {
 							{/each}
 						</div>
 					{/if}
-				</div>
+				{/if}
+
+				{#if positionsDockTab === 'balance'}
+					{#if firstUnifiedBalance}
+						{@const u = firstUnifiedBalance}
+						<div class="balance-tab-content">
+							<div class="bal-list">
+								<div class="bal-card">
+									<div class="cp-block">
+										<span class="cp-block-label">Asset</span>
+										<span class="cp-block-value bal-asset-name">USDT</span>
+									</div>
+									<div class="cp-block cp-block-num">
+										<span class="cp-block-label">Balance</span>
+										<span class="cp-block-value">{(u.availableUsd ?? u.tokenInBalance).toFixed(2)}</span>
+										{#if usdtReservedBreakdown.perp > 0.001}
+											<span class="bal-locked-inline">{usdtReservedBreakdown.perp.toFixed(2)} locked</span>
+										{/if}
+									</div>
+									<div class="cp-block cp-block-num">
+										<span class="cp-block-label">Price</span>
+										<span class="cp-block-value bal-dim">—</span>
+									</div>
+									<div class="cp-block cp-block-num">
+										<span class="cp-block-label">Value (USDT)</span>
+										<span class="cp-block-value bal-green">{(u.availableUsd ?? u.tokenInBalance).toFixed(2)}</span>
+									</div>
+								</div>
+								{#each heldTokens as [sym, idx]}
+									{@const row = mockTokenBalances[idx]}
+									{@const px = prices[sym]?.price ?? 0}
+									{@const usdVal = row ? row.tokenOutBalance * px : 0}
+									<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+									<div class="bal-card bal-card-clickable" class:bal-card-active={sym === selectedTab} on:click={() => switchTab(sym)}>
+										<div class="cp-block">
+											<span class="cp-block-label">Asset</span>
+											<span class="cp-block-value bal-asset-name">{sym}</span>
+										</div>
+										<div class="cp-block cp-block-num">
+											<span class="cp-block-label">Balance</span>
+											<span class="cp-block-value">{row ? row.tokenOutBalance.toFixed(synthDecimals(sym)) : '—'}</span>
+										</div>
+										<div class="cp-block cp-block-num">
+											<span class="cp-block-label">Price</span>
+											<span class="cp-block-value">{px > 0 ? '$' + px.toFixed(2) : '—'}</span>
+										</div>
+										<div class="cp-block cp-block-num">
+											<span class="cp-block-label">Value (USDT)</span>
+											<span class="cp-block-value">{usdVal > 0 ? usdVal.toFixed(2) : '—'}</span>
+										</div>
+									</div>
+								{/each}
+							</div>
+						</div>
+					{:else if Object.values(accountsInitialized).some(Boolean)}
+						<p class="dock-hint">Loading account…</p>
+					{:else}
+						<p class="dock-hint">Initialize your paper account from the header to trade.</p>
+					{/if}
+				{/if}
 			</div>
-		{/if}
+		</div>
+	{/if}
 	</div>
 
 	{#if showDevnetWalletFundingModal}
@@ -2081,298 +1973,7 @@ function maybeOfferDevnetFunding() {
 		overflow-x: hidden;
 	}
 
-	.command-bar {
-		--nav-fs: 12px;
-		--nav-label-fs: 11px;
-		--nav-meta-fs: 10px;
-		--nav-pad-y: 5px;
-		--nav-pad-x: 10px;
-		--nav-pill-gap: 6px;
-		box-sizing: border-box;
-		width: 100%;
-		background: #1a1a1a;
-		padding: 8px 14px;
-		display: flex;
-		flex-direction: row;
-		flex-wrap: nowrap;
-		align-items: center;
-		gap: 10px;
-		border-bottom: 1px solid #333;
-		overflow-x: auto;
-		overflow-y: hidden;
-		min-height: 52px;
-		scrollbar-width: thin;
-		scrollbar-color: #ff9500 #1a1a1a;
-	}
-
-	.command-bar::-webkit-scrollbar {
-		height: 6px;
-	}
-
-	.command-bar::-webkit-scrollbar-track {
-		background: #1a1a1a;
-	}
-
-	.command-bar::-webkit-scrollbar-thumb {
-		background: #ff9500;
-		border-radius: 3px;
-	}
-
-	.logo {
-		font-size: 19px;
-		font-weight: bold;
-		color: #ff9500;
-		letter-spacing: 2px;
-		text-decoration: none;
-		flex-shrink: 0;
-		white-space: nowrap;
-	}
-
-	.nav-links {
-		display: flex;
-		flex-flow: row nowrap;
-		gap: 15px;
-		flex-shrink: 0;
-		white-space: nowrap;
-	}
-
-	.nav-link {
-		color: #666;
-		text-decoration: none;
-		font-size: 14px;
-		padding: 5px 11px;
-		border: 1px solid transparent;
-		transition: all 0.2s;
-		flex-shrink: 0;
-		white-space: nowrap;
-	}
-
-	.nav-link:hover {
-		color: #fff;
-		border-color: #333;
-	}
-
-	.nav-link.active {
-		color: #ff9500;
-		border-color: #ff9500;
-	}
-
-	.pyth-status {
-		display: flex;
-		flex-flow: row nowrap;
-		align-items: center;
-		gap: var(--nav-pill-gap);
-		color: #ff9500;
-		font-size: var(--nav-fs);
-		padding: var(--nav-pad-y) var(--nav-pad-x);
-		background: #000;
-		border: 1px solid #333;
-		flex: 0 0 auto;
-		min-width: max-content;
-		line-height: 1.25;
-		white-space: nowrap;
-	}
-
-	.status-label {
-		color: #666;
-		font-size: var(--nav-label-fs);
-		letter-spacing: 0.5px;
-	}
-
-	.status-value {
-		color: #00ff00;
-		font-weight: bold;
-		font-size: var(--nav-fs);
-	}
-
-	.status-age {
-		color: #999;
-		font-size: var(--nav-meta-fs);
-	}
-
-	.magicblock-status {
-		display: flex;
-		flex-flow: row nowrap;
-		align-items: center;
-		gap: 5px;
-		color: #ff9500;
-		font-size: var(--nav-fs);
-		padding: var(--nav-pad-y) 8px;
-		background: #000;
-		border: 1px solid #333;
-		flex: 0 0 auto;
-		min-width: max-content;
-		line-height: 1.25;
-		white-space: nowrap;
-	}
-
-	.magicblock-status > .status-label,
-	.magicblock-status > .status-value,
-	.magicblock-status > .magicblock-session-trigger,
-	.magicblock-status > .wallet-addr,
-	.magicblock-status > .wallet-balance,
-	.magicblock-status > .airdrop-btn,
-	.magicblock-status > .initialize-btn,
-	.magicblock-status > .session-end-btn {
-		flex: 0 0 auto;
-		white-space: nowrap;
-	}
-
-	.magicblock-status > .wallet-balance {
-		margin-left: 0;
-	}
-
-	.magicblock-status > .airdrop-btn,
-	.magicblock-status > .initialize-btn,
-	.magicblock-status > .session-end-btn {
-		margin-left: 0;
-	}
-
-	.wallet-addr {
-		color: #ff9500;
-		font-size: var(--nav-fs);
-		font-family: 'Courier New', monospace;
-	}
-
-	.wallet-balance {
-		color: #00ff00;
-		font-weight: bold;
-		margin-left: 8px;
-		font-size: var(--nav-fs);
-	}
-
-	.airdrop-btn {
-		background: #ff9500;
-		color: #000;
-		border: none;
-		padding: var(--nav-pad-y) 12px;
-		font-size: var(--nav-label-fs);
-		font-weight: bold;
-		cursor: pointer;
-		margin-left: 8px;
-		font-family: 'Courier New', monospace;
-		letter-spacing: 1px;
-		transition: all 0.2s ease;
-	}
-
-	.airdrop-btn:hover {
-		background: #ffb733;
-		transform: scale(1.05);
-	}
-
-	.initialize-btn {
-		background: #00ff00;
-		color: #000;
-		border: none;
-		padding: var(--nav-pad-y) 12px;
-		font-size: var(--nav-label-fs);
-		font-weight: bold;
-		cursor: pointer;
-		margin-left: 8px;
-		font-family: 'Courier New', monospace;
-		letter-spacing: 1px;
-		transition: all 0.2s ease;
-	}
-
-	.initialize-btn:hover {
-		background: #33ff33;
-		transform: scale(1.05);
-	}
-
-	.fast-session-btn {
-		background: #ff9500;
-	}
-
-	.fast-session-btn:hover {
-		background: #ffb733;
-	}
-
-	.session-end-btn {
-		background: #3a2020;
-		color: #ff8888;
-		border: 1px solid #663333;
-	}
-
-	.session-end-btn:hover:not(:disabled) {
-		background: #552828;
-		color: #ffaaaa;
-		transform: none;
-	}
-
-	.session-end-btn:disabled {
-		opacity: 0.6;
-		cursor: wait;
-	}
-
-	.wallet-section {
-		display: flex;
-		align-items: center;
-		flex: 0 0 auto;
-		min-width: max-content;
-		white-space: nowrap;
-	}
-
-	.command-bar .wallet-section :global(.wallet-connected) {
-		padding: var(--nav-pad-y) var(--nav-pad-x);
-		gap: 9px;
-	}
-
-	.command-bar .wallet-section :global(.wallet-address),
-	.command-bar .wallet-section :global(.wallet-name),
-	.command-bar .wallet-section :global(.connect-button),
-	.command-bar .wallet-section :global(.disconnect-button) {
-		font-size: var(--nav-fs);
-		line-height: 1.25;
-	}
-
-	.command-bar .wallet-section :global(.wallet-name) {
-		font-size: var(--nav-label-fs);
-	}
-
-	.command-bar .wallet-section :global(.connect-button) {
-		padding: var(--nav-pad-y) calc(var(--nav-pad-x) + 6px);
-		min-width: 7.5rem;
-	}
-
-	.command-bar .wallet-section :global(.disconnect-button) {
-		padding: var(--nav-pad-y) var(--nav-pad-x);
-		font-size: var(--nav-label-fs);
-	}
-
-	.command-bar .wallet-section :global(.spinner) {
-		width: 13px;
-		height: 13px;
-	}
-
-	.clock {
-		color: #ff9500;
-		font-size: 12px;
-		min-width: 80px;
-		text-align: right;
-		flex-shrink: 0;
-	}
-
-	.ticker-bar {
-		background: #0a0a0a;
-		padding: 8px 15px;
-		display: flex;
-		gap: 40px;
-		border-bottom: 1px solid #333;
-	}
-
-	.ticker-item {
-		font-size: 13px;
-		color: #ff9500;
-		display: flex;
-		gap: 10px;
-		align-items: center;
-	}
-
-	.price {
-		color: #fff;
-		font-weight: bold;
-	}
-
+	/* Used in chart stats (ticker strip lives in TerminalTopChrome) */
 	.change-up {
 		color: #00ff00;
 		font-size: 12px;
@@ -2381,140 +1982,6 @@ function maybeOfferDevnetFunding() {
 	.change-down {
 		color: #ff0000;
 		font-size: 12px;
-	}
-
-	.confidence {
-		color: #666;
-		font-size: 10px;
-		font-style: italic;
-	}
-
-	.ema-price {
-		color: #ff9500;
-		font-weight: normal;
-	}
-
-	.confidence-stat {
-		color: #ffaa00;
-		font-size: 11px;
-	}
-
-	.freshness {
-		color: #00ff00;
-		font-size: 11px;
-	}
-
-	.tabs {
-		background: #0a0a0a;
-		display: flex;
-		gap: 2px;
-		padding: 0 15px;
-		border-bottom: 1px solid #333;
-		overflow-x: auto;
-		flex-wrap: nowrap;
-		scrollbar-width: thin;
-		scrollbar-color: #ff9500 #1a1a1a;
-	}
-
-	.tabs::-webkit-scrollbar {
-		height: 6px;
-	}
-
-	.tabs::-webkit-scrollbar-track {
-		background: #1a1a1a;
-	}
-
-	.tabs::-webkit-scrollbar-thumb {
-		background: #ff9500;
-		border-radius: 3px;
-	}
-
-	.tab {
-		background: #1a1a1a;
-		color: #ff9500;
-		border: none;
-		padding: 8px 20px;
-		font-family: 'Courier New', monospace;
-		font-size: 12px;
-		cursor: pointer;
-		border-top: 2px solid transparent;
-		transition: all 0.2s ease;
-		flex-shrink: 0;
-		white-space: nowrap;
-	}
-
-	.tab.active {
-		background: #000;
-		border-top-color: #ff9500;
-		color: #fff;
-	}
-
-	.tab:hover {
-		background: #000;
-	}
-
-	/* News Ticker */
-	.news-ticker-container {
-		min-width: 200px;
-		flex-shrink: 1;
-		overflow: hidden;
-		position: relative;
-		background: #0a0a0a;
-		border-left: 1px solid #333;
-	}
-
-	.news-ticker {
-		display: flex;
-		align-items: center;
-		gap: 40px;
-		animation: ticker-scroll 8s linear infinite;
-		white-space: nowrap;
-		padding: 0 20px;
-		height: 100%;
-	}
-
-	@keyframes ticker-scroll {
-		0% {
-			transform: translateX(0);
-		}
-		100% {
-			transform: translateX(-50%);
-		}
-	}
-
-	.ticker-news-item {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		text-decoration: none;
-		color: #ccc;
-		font-size: 11px;
-		transition: color 0.2s ease;
-		flex-shrink: 0;
-	}
-
-	.ticker-news-item:hover {
-		color: #ff9500;
-	}
-
-	.ticker-news-img {
-		width: 24px;
-		height: 24px;
-		object-fit: cover;
-		border-radius: 3px;
-		flex-shrink: 0;
-	}
-
-	.ticker-news-text {
-		max-width: 300px;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.ticker-loading {
-		color: #666;
-		font-size: 11px;
 	}
 
 	.main-grid {
@@ -2944,7 +2411,7 @@ function maybeOfferDevnetFunding() {
 		margin-bottom: 6px;
 		border: 1px solid #252525;
 		border-radius: 3px;
-		overflow-x: auto;
+		overflow-x: hidden;
 		overflow-y: hidden;
 		background: #0a0a0a;
 	}
@@ -3004,7 +2471,7 @@ function maybeOfferDevnetFunding() {
 	.dock-assets-grid {
 		display: grid;
 		grid-template-columns: repeat(5, minmax(0, 1fr));
-		gap: 6px;
+		gap: 4px;
 	}
 
 	.dock-asset-cell {
@@ -3102,15 +2569,6 @@ function maybeOfferDevnetFunding() {
 		padding: 6px 4px;
 	}
 
-	.hl-tournament-tag {
-		font-size: 10px;
-		color: #848e9c;
-		margin-bottom: 10px;
-		text-align: center;
-		padding: 6px;
-		background: #1a1a1a;
-		border-radius: 4px;
-	}
 
 	.hl-buy-sell {
 		display: grid;
@@ -3428,13 +2886,122 @@ function maybeOfferDevnetFunding() {
 		font-size: 11px;
 		font-weight: bold;
 		letter-spacing: 0.5px;
-		margin-bottom: 4px;
+		flex-shrink: 0;
+		padding: 0 0 0 0;
+		border-bottom: 1px solid #1a1a1a;
+	}
+
+	.dock-tab-btns {
+		display: flex;
+		align-items: stretch;
+		gap: 0;
 		flex-shrink: 0;
 	}
 
-	.chart-positions-title {
+	.dock-tab-btn {
+		background: transparent;
+		border: none;
+		border-bottom: 2px solid transparent;
+		color: #6b7280;
+		font-size: 11px;
+		font-weight: 600;
+		padding: 8px 14px;
+		cursor: pointer;
+		font-family: inherit;
+		letter-spacing: 0.3px;
+		transition: color 0.15s, border-color 0.15s;
+	}
+
+	.dock-tab-btn:hover {
+		color: #d1d5db;
+	}
+
+	.dock-tab-active {
+		color: #ff9500 !important;
+		border-bottom-color: #ff9500;
+	}
+
+	.dock-upnl-pill {
+		align-self: center;
+		margin-left: 8px;
+		font-size: 11px;
+		font-weight: 700;
+		font-family: ui-monospace, 'Cascadia Code', 'Courier New', monospace;
+		font-variant-numeric: tabular-nums;
+		padding: 2px 8px;
+		border-radius: 3px;
+		border: 1px solid currentColor;
+		opacity: 0.9;
+	}
+
+	.balance-tab-content {
+		overflow-y: auto;
+		overflow-x: hidden;
 		flex: 1;
-		min-width: 0;
+		min-height: 0;
+	}
+
+	.bal-list {
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+	}
+
+	.bal-card {
+		display: grid;
+		grid-template-columns: minmax(80px, 1fr) minmax(80px, 1.2fr) minmax(80px, 1.2fr) minmax(80px, 1.2fr);
+		gap: 4px 8px;
+		align-items: center;
+		font-size: 11px;
+		padding: 4px 8px;
+		background: #101010;
+		border: 1px solid #262626;
+		border-radius: 3px;
+		font-family: ui-monospace, 'Cascadia Code', 'Courier New', monospace;
+		line-height: 1.2;
+	}
+
+	.bal-card-clickable {
+		cursor: pointer;
+		transition: background 0.1s, border-color 0.1s;
+	}
+
+	.bal-card-clickable:hover {
+		background: #181818;
+		border-color: #3a3a3a;
+	}
+
+	.bal-card-active {
+		border-left: 2px solid #ff9500;
+		background: #110e00;
+	}
+
+	.bal-card-active .bal-asset-name {
+		color: #ff9500;
+	}
+
+	.bal-asset-name {
+		font-size: 12px;
+		font-weight: 600;
+		color: #e6e8ea;
+		letter-spacing: 0.04em;
+		line-height: 1.15;
+	}
+
+	.bal-green {
+		color: #2ebd85 !important;
+	}
+
+	.bal-dim {
+		color: #555 !important;
+	}
+
+	.bal-locked-inline {
+		font-size: 9px;
+		font-family: ui-monospace, 'Cascadia Code', 'Courier New', monospace;
+		font-variant-numeric: tabular-nums;
+		color: #f59e0b;
+		line-height: 1.15;
 	}
 
 	.chart-positions-header-actions {
@@ -3504,7 +3071,7 @@ function maybeOfferDevnetFunding() {
 		flex: 1;
 		min-height: 0;
 		overflow-y: auto;
-		overflow-x: auto;
+		overflow-x: hidden;
 	}
 
 	.chart-position-row {

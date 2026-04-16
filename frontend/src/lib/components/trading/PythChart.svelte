@@ -25,14 +25,14 @@
 		'1d': 86400,
 	};
 
-	// How many bars to show by default — matches TradingView's ~1-day default view
+	// How many bars to show in the default visible window
 	const DEFAULT_BARS: Record<string, number> = {
-		'1m':  200,   // ~3h
-		'5m':  144,   // 12h
-		'15m':  96,   // 1 day
-		'1h':   48,   // 2 days
-		'4h':   42,   // 1 week
-		'1d':   30,   // 1 month
+		'1m':  480,   // ~8h
+		'5m':  288,   // 1 day
+		'15m': 192,   // 2 days
+		'1h':  168,   // 1 week
+		'4h':  180,   // 1 month
+		'1d':  365,   // 1 year
 	};
 	const INTERVAL_LABELS = Object.keys(INTERVALS);
 
@@ -54,7 +54,7 @@
 	// ── Historical candles from Binance ───────────────────────────────────────
 
 	async function fetchCandles(sym: string, iv: string): Promise<CandlestickData<Time>[]> {
-		const url = `https://api.binance.com/api/v3/klines?symbol=${sym}USDT&interval=${iv}&limit=500`;
+		const url = `https://api.binance.com/api/v3/klines?symbol=${sym}USDT&interval=${iv}&limit=1000`;
 		const res = await fetch(url);
 		if (!res.ok) throw new Error(`Binance ${res.status}`);
 		const raw: any[][] = await res.json();
@@ -115,6 +115,7 @@
 			borderDownColor:'#ff4560',
 			wickUpColor:    '#00c076',
 			wickDownColor:  '#ff4560',
+			priceFormat: { type: 'price', precision: 4, minMove: 0.0001 },
 		} satisfies Partial<CandlestickSeriesOptions>);
 
 		// Load history — guard against a stale call if the user already switched pair

@@ -49,31 +49,107 @@ export const SOLANA_RPC = ENV.SOLANA_RPC;
 // Paper Trading Program ID from the contract
 export const PAPER_TRADING_PROGRAM_ID = new PublicKey(ENV.PAPER_TRADING_PROGRAM_ID);
 
+// On-chain pair indices — all 20 markets supported (0-4 preserved for backward compat)
 export const TRADING_PAIRS = {
 	SOL: 0,
 	BTC: 1,
 	ETH: 2,
 	AVAX: 3,
 	LINK: 4,
+	BNB: 5,
+	XRP: 6,
+	DOGE: 7,
+	ADA: 8,
+	TRX: 9,
+	DOT: 10,
+	MATIC: 11,
+	LTC: 12,
+	UNI: 13,
+	ATOM: 14,
+	NEAR: 15,
+	APT: 16,
+	SUI: 17,
+	INJ: 18,
+	TAO: 19,
 };
+
+/** `pair_index` (u8) → symbol — reused when decoding many accounts (avoid per-row maps). */
+const PAIR_INDEX_TO_SYMBOL: Record<number, string> = Object.fromEntries(
+	Object.entries(TRADING_PAIRS).map(([sym, idx]) => [idx as number, sym])
+);
+
+function txMessageAccountKeys(tx: {
+	transaction: { message: any };
+	meta?: { loadedAddresses?: { writable: PublicKey[]; readonly: PublicKey[] } } | null;
+}): PublicKey[] {
+	const message = tx.transaction.message;
+	if (typeof message?.getAccountKeys === 'function') {
+		const la = tx.meta?.loadedAddresses;
+		const accountKeysFromLookups = la
+			? { writable: la.writable, readonly: la.readonly }
+			: undefined;
+		return message.getAccountKeys({ accountKeysFromLookups }).keySegments().flat();
+	}
+	return message?.staticAccountKeys ?? message?.accountKeys ?? [];
+}
+
+// All markets available in the UI (top 20 by market cap, excl. stablecoins)
+export const ALL_MARKETS = [
+	'BTC', 'ETH', 'BNB', 'SOL', 'XRP',
+	'DOGE', 'ADA', 'TRX', 'AVAX', 'LINK',
+	'DOT', 'MATIC', 'LTC', 'UNI', 'ATOM',
+	'NEAR', 'APT', 'SUI', 'INJ', 'TAO',
+] as const;
+
+export type MarketSymbol = typeof ALL_MARKETS[number];
 
 export const TOKEN_DECIMALS = {
 	// token_in (quote tokens - typically USDT)
 	USDT: 6,
-	// token_out (base tokens) - using 8-9 decimals to avoid u64 overflow
+	// token_out (base tokens)
 	SOL: 9,
 	BTC: 8,
 	ETH: 8,
 	AVAX: 8,
 	LINK: 8,
+	BNB: 8,
+	XRP: 8,
+	DOGE: 8,
+	ADA: 8,
+	TRX: 8,
+	DOT: 8,
+	MATIC: 8,
+	LTC: 8,
+	UNI: 8,
+	ATOM: 8,
+	NEAR: 8,
+	APT: 8,
+	SUI: 8,
+	INJ: 8,
+	TAO: 8,
 };
 
 export const PAIR_DECIMALS = {
-	0: { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.SOL },   // SOL/USDT
-	1: { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.BTC },   // BTC/USDT
-	2: { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.ETH },   // ETH/USDT
-	3: { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.AVAX },  // AVAX/USDT
-	4: { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.LINK },  // LINK/USDT
+	0:  { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.SOL },
+	1:  { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.BTC },
+	2:  { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.ETH },
+	3:  { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.AVAX },
+	4:  { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.LINK },
+	5:  { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.BNB },
+	6:  { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.XRP },
+	7:  { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.DOGE },
+	8:  { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.ADA },
+	9:  { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.TRX },
+	10: { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.DOT },
+	11: { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.MATIC },
+	12: { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.LTC },
+	13: { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.UNI },
+	14: { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.ATOM },
+	15: { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.NEAR },
+	16: { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.APT },
+	17: { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.SUI },
+	18: { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.INJ },
+	19: { tokenIn: TOKEN_DECIMALS.USDT, tokenOut: TOKEN_DECIMALS.TAO },
 };
 
 export enum PositionDirection {
@@ -138,6 +214,8 @@ export class MagicBlockClient {
 	connectedWallet: Adapter | null = null;
 	/** Anchor client for unified paper-trading program (wallet signer). */
 	private paperProgram: Program | null = null;
+	/** Cached `global:buy` / `global:sell` ix discriminators (was recomputed per ix before). */
+	private spotIxDiscriminatorsPromise: Promise<{ buy: Buffer; sell: Buffer }> | null = null;
 
 	constructor() {
 		this.connection = new Connection(MAGICBLOCK_RPC, 'confirmed');
@@ -820,6 +898,16 @@ export class MagicBlockClient {
 		});
 	}
 
+	private getSpotIxDiscriminators(): Promise<{ buy: Buffer; sell: Buffer }> {
+		if (!this.spotIxDiscriminatorsPromise) {
+			this.spotIxDiscriminatorsPromise = Promise.all([
+				this.getMethodDiscriminator('global:buy'),
+				this.getMethodDiscriminator('global:sell'),
+			]).then(([buy, sell]) => ({ buy, sell }));
+		}
+		return this.spotIxDiscriminatorsPromise;
+	}
+
 	async fetchSpotTradeHistory(): Promise<any[]> {
 		const currentWallet = this.getCurrentWallet();
 		if (!currentWallet) {
@@ -827,94 +915,88 @@ export class MagicBlockClient {
 		}
 
 		const spotTrades: any[] = [];
+		const programIdStr = PAPER_TRADING_PROGRAM_ID.toBase58();
+		const SIG_LIMIT = 32;
+		const TX_BATCH = 20;
 
 		try {
-			// Fetch transaction history for each trading pair's user account
-			for (const [symbol, pairIndex] of Object.entries(TRADING_PAIRS)) {
+			const { buy: buyDisc, sell: sellDisc } = await this.getSpotIxDiscriminators();
+
+			const perPair = async (symbol: string, pairIndex: number) => {
+				const out: any[] = [];
 				try {
 					const [userAccountPDA] = this.getUserAccountPDA(currentWallet.publicKey, pairIndex);
-
-					// Get recent transactions for this account
 					const signatures = await this.connection.getSignaturesForAddress(userAccountPDA, {
-						limit: 50 // Limit to last 50 transactions per pair
+						limit: SIG_LIMIT,
 					});
-
-					for (const sigInfo of signatures) {
-						try {
-							const tx = await this.connection.getTransaction(sigInfo.signature, {
-								maxSupportedTransactionVersion: 0
-							});
-
+					const sigList = signatures.map((s) => s.signature);
+					for (let i = 0; i < sigList.length; i += TX_BATCH) {
+						const chunk = sigList.slice(i, i + TX_BATCH);
+						const txs = await this.connection.getTransactions(chunk, {
+							maxSupportedTransactionVersion: 0,
+						});
+						for (let j = 0; j < txs.length; j++) {
+							const tx = txs[j];
+							const signature = chunk[j];
 							if (!tx || !tx.meta || tx.meta.err) continue;
-
-							// Parse the transaction to determine if it's a buy or sell
-							const message = tx.transaction.message;
-							const instructions = message.compiledInstructions || [];
-
+							const instructions = tx.transaction.message.compiledInstructions || [];
+							const accountKeys = txMessageAccountKeys(tx);
 							for (const ix of instructions) {
-								// Check if this instruction is for our program
 								const programIdIndex = ix.programIdIndex;
-								const accountKeys = message.staticAccountKeys || message.accountKeys || [];
-
-								if (accountKeys[programIdIndex]?.toBase58() !== PAPER_TRADING_PROGRAM_ID.toBase58()) continue;
-
-								// Parse instruction data to determine type
+								if (accountKeys[programIdIndex]?.toBase58() !== programIdStr) continue;
 								const data = Buffer.from(ix.data);
 								if (data.length < 8) continue;
-
-								const discriminator = data.slice(0, 8);
-
-								// Calculate buy/sell discriminators
-								const buyDiscriminator = await this.getMethodDiscriminator('global:buy');
-								const sellDiscriminator = await this.getMethodDiscriminator('global:sell');
-
+								const discriminator = data.subarray(0, 8);
 								let tradeType: 'BUY' | 'SELL' | null = null;
-
-								if (discriminator.equals(buyDiscriminator)) {
-									tradeType = 'BUY';
-								} else if (discriminator.equals(sellDiscriminator)) {
-									tradeType = 'SELL';
-								}
-
-								if (tradeType && data.length >= 24) {
-									// Parse amount and price from instruction data
-									const amountTokenOut = data.readBigUInt64LE(8);
-									const priceScaled = data.readBigUInt64LE(16);
-
-									const pairDecimals = PAIR_DECIMALS[pairIndex as keyof typeof PAIR_DECIMALS];
-									const amount = Number(amountTokenOut) / Math.pow(10, pairDecimals.tokenOut);
-									const price = Number(priceScaled) / 1e6;
-									const value = amount * price;
-
-									spotTrades.push({
-										signature: sigInfo.signature,
-										tradeType,
-										pairIndex,
-										pairSymbol: symbol,
-										pair: `${symbol}/USDT`,
-										size: amount,
-										price,
-										value,
-										sizeUSDT: value,
-										date: new Date((tx.blockTime || 0) * 1000).toLocaleDateString(),
-										timestamp: new Date((tx.blockTime || 0) * 1000),
-										status: 'COMPLETED',
-										pnl: null // Spot trades don't have direct P&L
-									});
-								}
+								if (discriminator.equals(buyDisc)) tradeType = 'BUY';
+								else if (discriminator.equals(sellDisc)) tradeType = 'SELL';
+								if (!tradeType || data.length < 24) continue;
+								const amountTokenOut = data.readBigUInt64LE(8);
+								const priceScaled = data.readBigUInt64LE(16);
+								const pairDecimals = PAIR_DECIMALS[pairIndex as keyof typeof PAIR_DECIMALS];
+								const amount = Number(amountTokenOut) / Math.pow(10, pairDecimals.tokenOut);
+								const price = Number(priceScaled) / 1e6;
+								const value = amount * price;
+								const when = new Date((tx.blockTime || 0) * 1000);
+								out.push({
+									signature,
+									tradeMode: 'spot' as const,
+									tradeType,
+									pairIndex,
+									pairSymbol: symbol,
+									pair: `${symbol}/USDT`,
+									size: amount,
+									price,
+									entryPrice: price,
+									exitPrice: null,
+									value,
+									sizeUSDT: value,
+									date: when.toLocaleDateString(),
+									timestamp: when,
+									closedAt: when,
+									status: 'COMPLETED',
+									pnl: null,
+								});
 							}
-						} catch (txError) {
-							// Skip failed transaction parsing
 						}
 					}
-				} catch (pairError) {
-					// Skip failed pair
+				} catch {
+					// skip pair
 				}
+				return out;
+			};
+
+			const entries = Object.entries(TRADING_PAIRS);
+			const PAIR_CONCURRENCY = 6;
+			for (let i = 0; i < entries.length; i += PAIR_CONCURRENCY) {
+				const slice = entries.slice(i, i + PAIR_CONCURRENCY);
+				const pairChunks = await Promise.all(
+					slice.map(([symbol, pairIndex]) => perPair(symbol, pairIndex))
+				);
+				for (const rows of pairChunks) spotTrades.push(...rows);
 			}
 
-			// Sort by timestamp descending
 			spotTrades.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-
 		} catch (error) {
 			console.error('Error fetching spot trade history:', error);
 		}
@@ -936,9 +1018,15 @@ export class MagicBlockClient {
 		const tradeHistory: any[] = [];
 
 		try {
-			const allAccounts = await this.connection.getProgramAccounts(PAPER_TRADING_PROGRAM_ID, {
-				filters: [{ memcmp: { offset: 8, bytes: currentWallet.publicKey.toBase58() } }],
-			});
+			const [allAccounts, spotTrades] = await Promise.all([
+				this.connection.getProgramAccounts(PAPER_TRADING_PROGRAM_ID, {
+					filters: [{ memcmp: { offset: 8, bytes: currentWallet.publicKey.toBase58() } }],
+				}),
+				this.fetchSpotTradeHistory().catch((spotErr) => {
+					console.error('Error fetching spot trades:', spotErr);
+					return [] as any[];
+				}),
+			]);
 
 			for (const accountInfo of allAccounts) {
 				try {
@@ -946,68 +1034,79 @@ export class MagicBlockClient {
 					if (data.length < 152) continue;
 					if (!data.subarray(0, 8).equals(POSITION_ACCOUNT_DISCRIMINATOR)) continue;
 
-					const pairIndex = data[48];
-					const positionId = data.readBigUInt64LE(40);
-					const directionByte = data[50];
-					const sizeUsd = data.readBigUInt64LE(52);
-					const entryPrice = data.readBigUInt64LE(69);
+					const pairIndex    = data[48];
+					const tradeModeByte = data[49]; // 0=Spot, 1=Perp
+					const directionByte = data[50]; // 0=Long, 1=Short
+					const positionId   = data.readBigUInt64LE(40);
+					const sizeUsd      = data.readBigUInt64LE(52);
+					const marginUsd    = data.readBigUInt64LE(60);
+					const leverage     = data[68];
+					const entryPrice   = data.readBigUInt64LE(69);
 					const takeProfitPrice = data.readBigUInt64LE(85);
-					const stopLossPrice = data.readBigUInt64LE(93);
-					const status = data[109];
-					const openedAt = data.readBigInt64LE(110);
-					const closedAt = data.readBigInt64LE(126);
-					const closePrice = data.readBigUInt64LE(134);
-					const realizedPnl = data.readBigInt64LE(142);
+					const stopLossPrice   = data.readBigUInt64LE(93);
+					const statusByte   = data[109];
+					const openedAt     = data.readBigInt64LE(110);
+					const closedAt     = data.readBigInt64LE(126);
+					const closePrice   = data.readBigUInt64LE(134);
+					const realizedPnl  = data.readBigInt64LE(142);
+					const closeReasonByte = data[150]; // 0=None,1=Manual,2=TP,3=SL,4=Liq
 
-					const pairSymbols = ['SOL', 'BTC', 'ETH', 'AVAX', 'LINK'];
-					const pairSymbol = pairSymbols[pairIndex] || 'UNKNOWN';
+					const pairSymbol = PAIR_INDEX_TO_SYMBOL[pairIndex] || 'UNKNOWN';
 					const pairDecimals = PAIR_DECIMALS[pairIndex as keyof typeof PAIR_DECIMALS];
 					if (!pairDecimals) continue;
 
+					// statusByte: 0=PendingFill,1=Active,2=Closed,3=Liquidated,4=Cancelled
+					const isClosed = statusByte >= 2;
+					const statusLabel =
+						statusByte === 2 ? 'CLOSED' :
+						statusByte === 3 ? 'LIQUIDATED' :
+						statusByte === 4 ? 'CANCELLED' : 'ACTIVE';
+					const closeReasonLabel =
+						closeReasonByte === 1 ? 'Manual' :
+						closeReasonByte === 2 ? 'TakeProfit' :
+						closeReasonByte === 3 ? 'StopLoss' :
+						closeReasonByte === 4 ? 'Liquidation' : 'None';
+
+					const isPerp = tradeModeByte === 1;
 					const entryPriceNum = Number(entryPrice) / 1e6;
-					const notionalUsd = Number(sizeUsd) / 1e6;
-					const amountNum =
-						entryPriceNum > 0 ? notionalUsd / entryPriceNum : 0;
-					const sizeUSDT = notionalUsd;
-					const isClosed = status >= 2;
-					const exitPriceNum = isClosed ? Number(closePrice) / 1e6 : entryPriceNum;
-					const pnlUsd = isClosed ? Number(realizedPnl) / 1e6 : 0;
+					const notionalUsd   = Number(sizeUsd) / 1e6;
+					const marginUsdNum  = Number(marginUsd) / 1e6;
+					const amountNum     = entryPriceNum > 0 ? notionalUsd / entryPriceNum : 0;
+					const exitPriceNum  = isClosed ? Number(closePrice) / 1e6 : 0;
+					const pnlUsd        = isClosed ? Number(realizedPnl) / 1e6 : 0;
 
 					tradeHistory.push({
 						pubkey: accountInfo.pubkey.toBase58(),
 						positionId: positionId.toString(),
+						tradeMode: isPerp ? 'perp' : 'spot',
 						direction: directionByte === 0 ? 'LONG' : 'SHORT',
 						tradeType: directionByte === 0 ? 'LONG' : 'SHORT',
+						leverage,
 						pairIndex,
 						pairSymbol,
 						pair: `${pairSymbol}/USDT`,
-						type: isClosed ? 'CLOSED' : 'OPEN',
 						size: amountNum,
-						sizeUSDT,
+						sizeUSDT: notionalUsd,
+						marginUsd: isPerp ? marginUsdNum : null,
 						entryPrice: entryPriceNum,
 						exitPrice: isClosed ? exitPriceNum : null,
 						takeProfitPrice: takeProfitPrice > 0 ? Number(takeProfitPrice) / 1e6 : null,
 						stopLossPrice: stopLossPrice > 0 ? Number(stopLossPrice) / 1e6 : null,
-						status: isClosed ? 'CLOSED' : 'ACTIVE',
+						status: statusLabel,
+						closeReason: closeReasonLabel,
 						openedAt: new Date(Number(openedAt) * 1000),
 						closedAt: isClosed ? new Date(Number(closedAt) * 1000) : null,
 						timestamp: isClosed
 							? new Date(Number(closedAt) * 1000)
 							: new Date(Number(openedAt) * 1000),
-						pnl: pnlUsd,
+						pnl: isPerp && isClosed ? pnlUsd : null,
 					});
 				} catch (parseError) {
 					console.error('Error parsing position for history:', parseError);
 				}
 			}
 
-			// Also fetch spot trades
-			try {
-				const spotTrades = await this.fetchSpotTradeHistory();
-				tradeHistory.push(...spotTrades);
-			} catch (spotError) {
-				console.error('Error fetching spot trades:', spotError);
-			}
+			tradeHistory.push(...spotTrades);
 
 			// Sort all trades by timestamp (most recent first)
 			tradeHistory.sort((a, b) => {
@@ -1064,8 +1163,7 @@ export class MagicBlockClient {
 					const status = data[109];
 					const openedAt = data.readBigInt64LE(110);
 
-					const pairSymbols = ['SOL', 'BTC', 'ETH', 'AVAX', 'LINK'];
-					const pairSymbol = pairSymbols[pairIndex] || 'UNKNOWN';
+					const pairSymbol = PAIR_INDEX_TO_SYMBOL[pairIndex] || 'UNKNOWN';
 					const pairDecimals = PAIR_DECIMALS[pairIndex as keyof typeof PAIR_DECIMALS];
 					if (!pairDecimals) continue;
 
@@ -1149,7 +1247,9 @@ export class MagicBlockClient {
 	 * Unified `UserAccount` only stores USDT; synthetic "SOL/BTC…" balance in the UI comes from here.
 	 */
 	private async fetchSpotLongBaseHeldByPair(owner: PublicKey): Promise<Record<number, number>> {
-		const held: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
+		const held: Record<number, number> = Object.fromEntries(
+			Object.values(TRADING_PAIRS).map((i) => [i, 0])
+		);
 		try {
 			const allAccounts = await this.connection.getProgramAccounts(PAPER_TRADING_PROGRAM_ID, {
 				filters: [{ memcmp: { offset: 8, bytes: owner.toBase58() } }],
@@ -1180,7 +1280,7 @@ export class MagicBlockClient {
 				if (refPrice <= 0) continue;
 
 				const base = notionalUsd / refPrice;
-				if (pairIndex >= 0 && pairIndex <= 4) {
+				if (pairIndex in held) {
 					held[pairIndex] = (held[pairIndex] ?? 0) + base;
 				}
 			}

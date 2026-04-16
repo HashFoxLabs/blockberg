@@ -11,11 +11,26 @@ export type OrderBookData = {
 };
 
 const SYMBOL_MAP: Record<string, string> = {
-	SOL: 'solusdt',
-	BTC: 'btcusdt',
-	ETH: 'ethusdt',
-	AVAX: 'avaxusdt',
-	LINK: 'linkusdt',
+	BTC:   'btcusdt',
+	ETH:   'ethusdt',
+	BNB:   'bnbusdt',
+	SOL:   'solusdt',
+	XRP:   'xrpusdt',
+	DOGE:  'dogeusdt',
+	ADA:   'adausdt',
+	TRX:   'trxusdt',
+	AVAX:  'avaxusdt',
+	LINK:  'linkusdt',
+	DOT:   'dotusdt',
+	MATIC: 'maticusdt',
+	LTC:   'ltcusdt',
+	UNI:   'uniusdt',
+	ATOM:  'atomusdt',
+	NEAR:  'nearusdt',
+	APT:   'aptusdt',
+	SUI:   'suiusdt',
+	INJ:   'injusdt',
+	TAO:   'taousdt',
 };
 
 const DEPTH_LEVELS = 14;

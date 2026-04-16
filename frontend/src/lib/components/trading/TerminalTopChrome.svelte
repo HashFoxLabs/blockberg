@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount, createEventDispatcher } from 'svelte';
+	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import MarketSelectNav from '$lib/components/trading/MarketSelectNav.svelte';
-	import { magicBlockClient, TRADING_PAIRS } from '$lib/magicblock';
+	import { magicBlockClient, TRADING_PAIRS, ALL_MARKETS } from '$lib/magicblock';
 	import { walletStore } from '$lib/wallet/stores';
 	import { tradingModeStore, type TradingContext } from '$lib/stores/tradingMode';
 	import WalletButton from '$lib/wallet/WalletButton.svelte';
@@ -19,12 +20,23 @@
 	const dispatch = createEventDispatcher<{
 		prices: Record<string, PriceData>;
 		accountschanged: void;
+		marketselect: { symbol: string };
 	}>();
 
 	export let activeSection: 'terminal' | 'dashboard' = 'dashboard';
 
-	/** Shown on History; choosing a row opens the terminal on that pair. */
+	/** When set (e.g. on `/terminal`), nav + ticker track the parent `selectedTab`. */
+	export let selectedMarketSymbol: string | undefined = undefined;
+
+	/** Matches terminal `selectedTab` / `?pair=` for nav + headline ticker. */
 	let navMarketSymbol = 'SOL';
+
+	$: displayMarket = selectedMarketSymbol ?? navMarketSymbol;
+
+	/** Same headline symbols as `/terminal` ticker strip */
+	const TICKER_HEADLINE = ['SOL', 'ETH', 'BTC', 'TAO'] as const;
+
+	let businessNews: { title: string; url: string; imageurl: string | null; source: string }[] = [];
 
 	let prices: Record<string, PriceData> = $priceStore;
 	let pythStatus = 'Initializing...';
@@ -59,6 +71,48 @@
 			void updateWalletStatusBar();
 		}
 	});
+
+	$: {
+		const q = $page.url.searchParams.get('pair');
+		if (q && (ALL_MARKETS as readonly string[]).includes(q)) {
+			navMarketSymbol = q;
+		}
+	}
+
+	async function fetchBusinessNews() {
+		try {
+			const rssUrl = 'https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en';
+			const response = await fetch(`${ENV.RSS2JSON_API_URL}?rss_url=${encodeURIComponent(rssUrl)}`);
+			if (!response.ok) throw new Error(`HTTP ${response.status}`);
+			const data = await response.json();
+			if (data.items && data.items.length > 0) {
+				businessNews = data.items.map((item: any) => ({
+					title: item.title,
+					url: item.link,
+					imageurl: item.enclosure?.link || item.thumbnail || null,
+					source: item.author || 'Google News',
+				}));
+			}
+		} catch (error) {
+			console.error('Failed to fetch business news:', error);
+			businessNews = [];
+		}
+	}
+
+	function tickerPriceFmt(p: PriceData): string {
+		if (!p || p.price <= 0) return '—';
+		const decimals = p.price >= 100 ? 2 : p.price >= 1 ? 3 : 5;
+		return p.price.toFixed(decimals);
+	}
+
+	function onTickerSelect(sym: string) {
+		navMarketSymbol = sym;
+		if (activeSection === 'dashboard') {
+			goto(`/terminal?pair=${sym}`);
+		} else {
+			dispatch('marketselect', { symbol: sym });
+		}
+	}
 
 	async function updateWalletStatusBar() {
 		if (!connectedWallet?.connected) return;
@@ -311,6 +365,7 @@
 
 		void initWallet();
 		startPythLazerUpdates();
+		void fetchBusinessNews();
 	});
 
 	function onNavMarketSelect(e: CustomEvent<{ symbol: string }>) {
@@ -318,6 +373,8 @@
 		navMarketSymbol = sym;
 		if (activeSection === 'dashboard') {
 			goto(`/terminal?pair=${sym}`);
+		} else {
+			dispatch('marketselect', { symbol: sym });
 		}
 	}
 </script>
@@ -329,7 +386,7 @@
 			<a href="/terminal" class="nav-link" class:active={activeSection === 'terminal'}>TERMINAL</a>
 			<a href="/dashboard" class="nav-link" class:active={activeSection === 'dashboard'}>HISTORY</a>
 		</div>
-		<MarketSelectNav selectedSymbol={navMarketSymbol} on:select={onNavMarketSelect} />
+		<MarketSelectNav selectedSymbol={displayMarket} on:select={onNavMarketSelect} />
 		<div class="pyth-status">
 			<span class="status-label">PYTH:</span>
 			<span class="status-value">{pythStatus}</span>
@@ -352,9 +409,6 @@
 				<span class="status-value">{magicBlockStatus}</span>
 			{/if}
 			{#if connectedWallet?.connected}
-				<span class="wallet-addr"
-					>{walletAddress.substring(0, 4)}...{walletAddress.substring(walletAddress.length - 4)}</span
-				>
 				<span class="wallet-balance">{walletBalance.toFixed(4)} SOL</span>
 				{#if walletBalance < 0.1}
 					<button type="button" class="airdrop-btn" on:click={requestAirdrop}>AIRDROP</button>
@@ -386,40 +440,44 @@
 	</div>
 
 	<div class="ticker-bar">
-		<div class="ticker-item">
-			SOL/USD <span class="price">{prices.SOL.price.toFixed(2)}</span>
-			<span class={prices.SOL.change >= 0 ? 'change-up' : 'change-down'}>
-				{prices.SOL.change >= 0 ? '▲' : '▼'} {Math.abs(prices.SOL.change).toFixed(2)}%
-			</span>
-			<span class="confidence" title="Confidence Interval">±{prices.SOL.confidence.toFixed(4)}</span>
+		<div class="ticker-prices">
+			{#each TICKER_HEADLINE as sym}
+				{@const p = prices[sym]}
+				{#if p}
+					<div
+						class="ticker-item"
+						class:ticker-active={sym === displayMarket}
+						role="button"
+						tabindex="0"
+						on:click={() => onTickerSelect(sym)}
+						on:keydown={(e) => e.key === 'Enter' && onTickerSelect(sym)}
+					>
+						<span class="ticker-sym">{sym}/USD</span>
+						<span class="price">{tickerPriceFmt(p)}</span>
+						{#if p.price > 0}
+							<span class={p.change >= 0 ? 'change-up' : 'change-down'}>
+								{p.change >= 0 ? '▲' : '▼'} {Math.abs(p.change).toFixed(2)}%
+							</span>
+						{/if}
+					</div>
+				{/if}
+			{/each}
 		</div>
-		<div class="ticker-item">
-			BTC/USD <span class="price">{prices.BTC.price.toFixed(2)}</span>
-			<span class={prices.BTC.change >= 0 ? 'change-up' : 'change-down'}>
-				{prices.BTC.change >= 0 ? '▲' : '▼'} {Math.abs(prices.BTC.change).toFixed(2)}%
-			</span>
-			<span class="confidence" title="Confidence Interval">±{prices.BTC.confidence.toFixed(2)}</span>
-		</div>
-		<div class="ticker-item">
-			ETH/USD <span class="price">{prices.ETH.price.toFixed(2)}</span>
-			<span class={prices.ETH.change >= 0 ? 'change-up' : 'change-down'}>
-				{prices.ETH.change >= 0 ? '▲' : '▼'} {Math.abs(prices.ETH.change).toFixed(2)}%
-			</span>
-			<span class="confidence" title="Confidence Interval">±{prices.ETH.confidence.toFixed(3)}</span>
-		</div>
-		<div class="ticker-item">
-			AVAX/USD <span class="price">{prices.AVAX.price.toFixed(2)}</span>
-			<span class={prices.AVAX.change >= 0 ? 'change-up' : 'change-down'}>
-				{prices.AVAX.change >= 0 ? '▲' : '▼'} {Math.abs(prices.AVAX.change).toFixed(2)}%
-			</span>
-			<span class="confidence" title="Confidence Interval">±{prices.AVAX.confidence.toFixed(4)}</span>
-		</div>
-		<div class="ticker-item">
-			LINK/USD <span class="price">{prices.LINK.price.toFixed(3)}</span>
-			<span class={prices.LINK.change >= 0 ? 'change-up' : 'change-down'}>
-				{prices.LINK.change >= 0 ? '▲' : '▼'} {Math.abs(prices.LINK.change).toFixed(2)}%
-			</span>
-			<span class="confidence" title="Confidence Interval">±{prices.LINK.confidence.toFixed(5)}</span>
+		<div class="news-ticker-container">
+			<div class="news-ticker">
+				{#if businessNews.length > 0}
+					{#each [...businessNews, ...businessNews] as article}
+						<a href={article.url} target="_blank" rel="noopener noreferrer" class="ticker-news-item">
+							{#if article.imageurl}
+								<img src={article.imageurl} alt="" class="ticker-news-img" />
+							{/if}
+							<span class="ticker-news-text">{article.title}</span>
+						</a>
+					{/each}
+				{:else}
+					<span class="ticker-loading">Loading news…</span>
+				{/if}
+			</div>
 		</div>
 	</div>
 
@@ -726,7 +784,6 @@
 	.magicblock-status > .status-label,
 	.magicblock-status > .status-value,
 	.magicblock-status > .magicblock-session-trigger,
-	.magicblock-status > .wallet-addr,
 	.magicblock-status > .wallet-balance,
 	.magicblock-status > .airdrop-btn,
 	.magicblock-status > .initialize-btn,
@@ -743,12 +800,6 @@
 	.magicblock-status > .initialize-btn,
 	.magicblock-status > .session-end-btn {
 		margin-left: 0;
-	}
-
-	.wallet-addr {
-		color: #ff9500;
-		font-size: var(--nav-fs);
-		font-family: 'Courier New', monospace;
 	}
 
 	.wallet-balance {
@@ -863,19 +914,50 @@
 
 	.ticker-bar {
 		background: #0a0a0a;
-		padding: 8px 15px;
 		display: flex;
-		gap: 40px;
 		border-bottom: 1px solid #333;
-		flex-wrap: wrap;
+		flex-shrink: 0;
+		height: 36px;
+		overflow: hidden;
+	}
+
+	.ticker-prices {
+		display: flex;
+		align-items: center;
+		gap: 0;
+		padding: 0 12px 0 14px;
+		flex-shrink: 0;
+		border-right: 1px solid #333;
 	}
 
 	.ticker-item {
-		font-size: 13px;
-		color: #ff9500;
+		font-size: 12px;
+		color: #888;
 		display: flex;
-		gap: 10px;
+		gap: 6px;
 		align-items: center;
+		cursor: pointer;
+		flex-shrink: 0;
+		padding: 2px 8px;
+		border-bottom: 2px solid transparent;
+		transition:
+			color 0.12s ease,
+			border-color 0.12s ease;
+		white-space: nowrap;
+	}
+
+	.ticker-item:hover {
+		color: #ccc;
+	}
+
+	.ticker-item.ticker-active {
+		color: #ff9500;
+		border-bottom-color: #ff9500;
+	}
+
+	.ticker-sym {
+		font-weight: bold;
+		letter-spacing: 0.03em;
 	}
 
 	.price {
@@ -893,10 +975,66 @@
 		font-size: 12px;
 	}
 
-	.confidence {
+	.news-ticker-container {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		position: relative;
+		background: #0a0a0a;
+	}
+
+	.news-ticker {
+		display: flex;
+		align-items: center;
+		gap: 40px;
+		animation: ticker-scroll 8s linear infinite;
+		white-space: nowrap;
+		padding: 0 20px;
+		height: 100%;
+	}
+
+	@keyframes ticker-scroll {
+		0% {
+			transform: translateX(0);
+		}
+		100% {
+			transform: translateX(-50%);
+		}
+	}
+
+	.ticker-news-item {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		text-decoration: none;
+		color: #ccc;
+		font-size: 11px;
+		transition: color 0.2s ease;
+		flex-shrink: 0;
+	}
+
+	.ticker-news-item:hover {
+		color: #ff9500;
+	}
+
+	.ticker-news-img {
+		width: 24px;
+		height: 24px;
+		object-fit: cover;
+		border-radius: 3px;
+		flex-shrink: 0;
+	}
+
+	.ticker-news-text {
+		max-width: 300px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.ticker-loading {
 		color: #666;
-		font-size: 10px;
-		font-style: italic;
+		font-size: 11px;
 	}
 
 	.magicblock-session-trigger {
