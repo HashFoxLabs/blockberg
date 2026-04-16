@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { get } from 'svelte/store';
 	import { page } from '$app/stores';
 	import { magicBlockClient, PositionDirection, PERP_LEVERAGE_TIERS, TRADING_PAIRS } from '$lib/magicblock';
@@ -12,6 +12,12 @@
 	} from '$lib/stores/pythPrices';
 	import { walletStore } from '$lib/wallet/stores';
 	import { tradingModeStore, type TradingContext } from '$lib/stores/tradingMode';
+	import {
+		binanceOrderBook,
+		binanceTrades,
+		connectBinance,
+		disconnectBinance,
+	} from '$lib/stores/binanceOrderbook';
 	import MarketSelectNav from '$lib/components/trading/MarketSelectNav.svelte';
 	import PythChart from '$lib/components/trading/PythChart.svelte';
 	import WalletButton from '$lib/wallet/WalletButton.svelte';
@@ -332,6 +338,7 @@
 
 	async function switchTab(newTab: string) {
 		selectedTab = newTab;
+		connectBinance(newTab);
 		const opts = precisionOptionsForTab(newTab);
 		if (!opts.includes(orderBookPrecision)) {
 			orderBookPrecision = opts[0];
@@ -450,64 +457,9 @@
 		return sum;
 	})();
 
-	function makeOrderBook(mid: number, precStr: string) {
-		if (mid <= 0) {
-			return {
-				asks: [] as { price: number; size: number; total: number }[],
-				bids: [] as { price: number; size: number; total: number }[],
-				spreadAbs: 0,
-				spreadPct: 0
-			};
-		}
-		const prec = parseFloat(precStr) || 0.01;
-		const levels = 14;
-		const asks: { price: number; size: number; total: number }[] = [];
-		const bids: { price: number; size: number; total: number }[] = [];
-		const seed = Math.floor(mid * 10000) % 1000;
-		const pseudo = (i: number) => ((seed * (i + 7)) % 97) / 97;
-		for (let i = 1; i <= levels; i++) {
-			const askPx = Math.ceil((mid + prec * i * (1 + pseudo(i) * 0.45)) / prec) * prec;
-			const bidPx = Math.floor((mid - prec * i * (1 + pseudo(i + 20) * 0.45)) / prec) * prec;
-			const sz = Math.round((0.4 + pseudo(i + 3) * 12) * 10000) / 10000;
-			const tot = Math.round((sz * (0.5 + pseudo(i + 5) * 3)) * 10000) / 10000;
-			asks.push({ price: askPx, size: sz, total: tot });
-			bids.push({ price: bidPx, size: sz, total: tot });
-		}
-		asks.sort((a, b) => a.price - b.price);
-		bids.sort((a, b) => b.price - a.price);
-		const bestAsk = asks[0]?.price ?? mid;
-		const bestBid = bids[0]?.price ?? mid;
-		const spreadAbs = Math.max(0, bestAsk - bestBid);
-		const spreadPct = mid > 0 ? (spreadAbs / mid) * 100 : 0;
-		return { asks, bids, spreadAbs, spreadPct };
-	}
-
-	$: orderBookData = makeOrderBook(
-		prices[selectedTab as keyof typeof prices]?.price ?? 0,
-		orderBookPrecision
-	);
-
-	function makeMockTrades(mid: number) {
-		if (mid <= 0) return [];
-		const out: { side: 'buy' | 'sell'; price: number; size: number; t: string }[] = [];
-		const seed = Math.floor(mid * 1000) % 500;
-		const pseudo = (i: number) => ((seed + i * 13) % 100) / 100;
-		for (let i = 0; i < 18; i++) {
-			const buy = i % 3 !== 0;
-			const px = mid * (1 + (pseudo(i) - 0.5) * 0.002);
-			const sz = Math.round((0.1 + pseudo(i + 1) * 6) * 10000) / 10000;
-			const sec = i * 3 + (seed % 7);
-			out.push({
-				side: buy ? 'buy' : 'sell',
-				price: Math.round(px * 100) / 100,
-				size: sz,
-				t: `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}`
-			});
-		}
-		return out;
-	}
-
-	$: mockTradesList = makeMockTrades(prices[selectedTab as keyof typeof prices]?.price ?? 0);
+	// Live orderbook and trades from Binance WebSocket
+	$: orderBookData = $binanceOrderBook;
+	$: liveTradesList = $binanceTrades;
 
 	function notionalFromSizeInput(): number {
 		const raw = parseFloat(tradeSize);
@@ -1242,6 +1194,7 @@ function maybeOfferDevnetFunding() {
 		fetchBusinessNews();
 		startPythLazerUpdates();
 		updateTime();
+		connectBinance(selectedTab);
 
 		const qPair = get(page).url.searchParams.get('pair');
 		if (qPair && qPair in TRADING_PAIRS) {
@@ -1265,6 +1218,10 @@ function maybeOfferDevnetFunding() {
 		}, 3000);
 
 
+	});
+
+	onDestroy(() => {
+		disconnectBinance();
 	});
 </script>
 
@@ -1511,11 +1468,6 @@ function maybeOfferDevnetFunding() {
 		<div class="panel orderbook-panel">
 			<div class="ob-top">
 				<span class="ob-title">{selectedTab}/USDT</span>
-				<select class="ob-precision-select" bind:value={orderBookPrecision}>
-					{#each precisionOptionsForTab(selectedTab) as p}
-						<option value={p}>{p}</option>
-					{/each}
-				</select>
 			</div>
 			<div class="ob-tabs">
 				<button
@@ -1580,7 +1532,7 @@ function maybeOfferDevnetFunding() {
 						<span class="ob-hdr-end">Time</span>
 					</div>
 					<div class="ob-scroll ob-trades-scroll">
-						{#each mockTradesList as t}
+						{#each liveTradesList as t}
 							<div
 								class="ob-trade-line"
 								class:trade-buy={t.side === 'buy'}
@@ -2783,7 +2735,7 @@ function maybeOfferDevnetFunding() {
 	}
 
 	.ob-trade-line.trade-buy span:first-child {
-		color: #ff9500;
+		color: #0ecb81;
 	}
 
 	.ob-trade-line.trade-sell span:first-child {
